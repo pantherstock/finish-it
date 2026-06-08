@@ -598,7 +598,8 @@ function cleanMarkdown(md) {
     const linkCount = (raw.match(/\]\(/g) || []).length;   // markdown link density (before stripping)
     const p = raw
       .replace(/!\[[^\]]*\]\([^)]*\)/g, "")                // images
-      .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")             // links -> text
+      .replace(/\[\[\d[\d,\s]*\]\]\([^)]*\)/g, "")         // citation links [[1]](url)
+      .replace(/\[([^\]]+)\]\((?:[^()]*|\([^()]*\))*\)/g, "$1")  // links -> text (handles parens/titles in URL)
       .replace(/^#{1,6}\s*/gm, "")                         // heading marks
       .replace(/[*_`>|]/g, "")                             // md symbols + table pipes
       .replace(/^\s*[-•\d.]+\s+/gm, "")                    // list / numbered bullets
