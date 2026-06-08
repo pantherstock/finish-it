@@ -64,6 +64,13 @@ jobs:
           # --model: 'sonnet' is a cheaper/faster default well-suited to a small
           #   single-file fix; switch to 'opus' for harder changes.
           # --max-turns: caps the agent loop (a safety bound on work + cost).
+          # --allowedTools: on an `issues` event the action runs in "agent mode"
+          #   and does NOT auto-create the PR — Claude must branch, commit, push,
+          #   and open the PR itself via git/gh. Bash tools aren't permitted by
+          #   default, so we allowlist exactly git + gh (plus file tools). Without
+          #   this, the run goes green but the git/gh calls are silently denied
+          #   (you'll see permission_denials_count > 0 and no PR appears).
           claude_args: |
             --model sonnet
             --max-turns 15
+            --allowedTools "Edit,Read,Write,Glob,Grep,Bash(git:*),Bash(gh:*)"
