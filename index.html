@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Finish It — read it, finally</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper: #f6efe3;
+    --paper-deep: #efe4d2;
+    --card: #fbf6ec;
+    --ink: #34302a;
+    --ink-soft: #756d5d;
+    --ink-faint: #a89e8a;
+    --line: #e4d9c4;
+    --accent: #c0703a;       /* terracotta */
+    --accent-soft: #e7c9a8;
+    --gold: #d99f53;         /* warm glow */
+    --sage: #7e8c6c;
+    --sage-soft: #d9e0cc;
+    --shadow: 28px 28px 60px rgba(120, 100, 70, .14);
+    --r: 22px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: "Newsreader", Georgia, serif;
+    background:
+      radial-gradient(1200px 700px at 82% -8%, #f9f2e6 0%, transparent 60%),
+      radial-gradient(900px 600px at -5% 105%, #f1e7d4 0%, transparent 55%),
+      var(--paper);
+    color: var(--ink);
+    min-height: 100%;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.6;
+    /* subtle paper grain */
+    background-attachment: fixed;
+  }
+  body::before {
+    content: "";
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    opacity: .035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .wrap { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; padding: 38px 22px 90px; }
+
+  .screen { display: none; animation: rise .5s cubic-bezier(.2,.8,.25,1) both; }
+  .screen.active { display: block; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+  /* ---------- masthead ---------- */
+  .mast { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 30px; }
+  .brand {
+    font-family: "Fraunces", serif; font-weight: 600; font-size: 26px; letter-spacing: -.01em;
+    display: flex; align-items: center; gap: 11px; cursor: pointer; color: var(--ink);
+  }
+  .brand .seed {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #f0c98a, var(--accent));
+    box-shadow: 0 0 0 5px rgba(192,112,58,.12);
+    flex: none;
+  }
+  .brand em { font-style: italic; font-weight: 400; color: var(--accent); }
+  .nav-link {
+    font-family: "Fraunces", serif; font-size: 14px; color: var(--ink-soft);
+    background: none; border: none; cursor: pointer; letter-spacing: .02em;
+    border-bottom: 1.5px solid transparent; padding-bottom: 2px; transition: .2s;
+  }
+  .nav-link:hover { color: var(--accent); border-color: var(--accent-soft); }
+
+  /* ---------- home ---------- */
+  .hero { margin: 8px 0 26px; }
+  .hero h1 {
+    font-family: "Fraunces", serif; font-weight: 400; font-size: clamp(30px, 6vw, 44px);
+    line-height: 1.08; letter-spacing: -.02em; color: var(--ink);
+  }
+  .hero h1 em { font-style: italic; color: var(--accent); }
+  .hero p { color: var(--ink-soft); font-size: 18px; margin-top: 12px; max-width: 50ch; }
+
+  .paste {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
+    box-shadow: var(--shadow); padding: 8px; margin-top: 6px;
+  }
+  .paste textarea {
+    width: 100%; border: none; background: transparent; resize: none;
+    font-family: "Newsreader", serif; font-size: 17px; color: var(--ink);
+    padding: 16px 16px 6px; min-height: 96px; outline: none; line-height: 1.5;
+  }
+  .paste textarea::placeholder { color: var(--ink-faint); }
+  .paste-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 8px 8px; }
+  .hint { font-size: 13px; color: var(--ink-faint); font-style: italic; }
+  .btn {
+    font-family: "Fraunces", serif; font-weight: 500; font-size: 16px;
+    background: var(--ink); color: var(--paper); border: none; border-radius: 100px;
+    padding: 12px 24px; cursor: pointer; transition: transform .15s, box-shadow .2s, background .2s;
+    box-shadow: 0 6px 18px rgba(52,48,42,.18);
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(52,48,42,.24); }
+  .btn:active { transform: translateY(0); }
+  .btn.accent { background: var(--accent); box-shadow: 0 6px 18px rgba(192,112,58,.28); }
+  .btn:disabled { opacity: .5; cursor: default; transform: none; }
+
+  .samples { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
+  .samples span { font-size: 13px; color: var(--ink-faint); margin-right: 2px; }
+  .chip {
+    font-family: "Newsreader", serif; font-size: 14px; color: var(--ink-soft);
+    background: var(--paper-deep); border: 1px solid var(--line); border-radius: 100px;
+    padding: 6px 14px; cursor: pointer; transition: .18s;
+  }
+  .chip:hover { background: #fff; color: var(--accent); border-color: var(--accent-soft); }
+
+  /* shelf */
+  .shelf { margin-top: 46px; }
+  .shelf h2 {
+    font-family: "Fraunces", serif; font-weight: 500; font-size: 15px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px;
+  }
+  .row {
+    display: flex; align-items: center; gap: 16px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 16px; padding: 15px 18px; margin-bottom: 11px;
+    cursor: pointer; transition: .18s; box-shadow: 0 4px 14px rgba(120,100,70,.05);
+  }
+  .row:hover { transform: translateX(3px); border-color: var(--accent-soft); }
+  .row .ttl { flex: 1; min-width: 0; }
+  .row .ttl b { font-family: "Fraunces", serif; font-weight: 500; font-size: 17px; display: block;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .ttl small { color: var(--ink-faint); font-size: 13px; }
+  .mini-trail { display: flex; gap: 4px; flex: none; }
+  .mini-trail i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); display: block; }
+  .mini-trail i.on { background: var(--gold); }
+  .done-badge { font-family: "Fraunces", serif; font-size: 13px; color: var(--sage); white-space: nowrap; }
+  .row-del { flex: none; background: none; border: none; cursor: pointer; color: var(--ink-faint);
+    font-size: 20px; line-height: 1; padding: 4px 8px; border-radius: 8px; transition: .15s; }
+  .row-del:hover { color: var(--accent); background: var(--paper-deep); }
+  .empty { color: var(--ink-faint); font-style: italic; font-size: 15px; }
+
+  /* ---------- reader ---------- */
+  .reader-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .quit { background: none; border: none; cursor: pointer; color: var(--ink-faint); font-size: 22px; line-height: 1; padding: 4px; }
+  .quit:hover { color: var(--accent); }
+  .read-title { font-family: "Fraunces", serif; font-size: 14px; color: var(--ink-soft); letter-spacing: .02em;
+    max-width: 70%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+
+  /* the growing plant */
+  .trail-wrap { padding: 12px 4px 2px; }
+  .plant { position: relative; width: 190px; height: 176px; margin: 0 auto; }
+  .pot {
+    position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 66px; height: 40px;
+    background: linear-gradient(#cf8c57, #a96e42);
+    clip-path: polygon(12% 0, 88% 0, 78% 100%, 22% 100%);
+  }
+  .pot::before { content: ""; position: absolute; top: -5px; left: 50%; transform: translateX(-50%);
+    width: 60px; height: 13px; border-radius: 50%; background: #5a4632; }
+  .stem {
+    position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
+    width: 5px; border-radius: 4px 4px 0 0;
+    background: linear-gradient(to top, #74835f, #97a97b);
+    transition: height 1s cubic-bezier(.2,.8,.25,1);
+  }
+  .leaf {
+    position: absolute; left: 50%; width: 36px; height: 19px;
+    background: radial-gradient(circle at 28% 28%, #a7b785, var(--sage));
+    box-shadow: inset 0 0 0 1px rgba(90,110,70,.18);
+    transition: transform .7s cubic-bezier(.2,1.6,.45,1);
+  }
+  .leaf.left  { transform-origin: right center; border-radius: 100% 0 100% 0;
+                transform: translateX(-100%) rotate(20deg) scale(0); }
+  .leaf.left.grown  { transform: translateX(-100%) rotate(20deg) scale(1); }
+  .leaf.right { transform-origin: left center;  border-radius: 0 100% 0 100%;
+                transform: rotate(-20deg) scale(0); }
+  .leaf.right.grown { transform: rotate(-20deg) scale(1); }
+  .bud {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    width: 14px; height: 19px; border-radius: 50% 50% 50% 50% / 64% 64% 36% 36%;
+    background: radial-gradient(circle at 40% 30%, #f0c98a, var(--accent));
+    box-shadow: 0 0 0 5px rgba(192,112,58,.09);
+    transition: bottom 1s cubic-bezier(.2,.8,.25,1);
+  }
+  .flower { position: absolute; left: 50%; transform: translateX(-50%);
+    transform-origin: center bottom; animation: floom 1s cubic-bezier(.2,1.5,.4,1) both;
+    filter: drop-shadow(0 4px 12px rgba(217,159,83,.45)); }
+  @keyframes floom { from { transform: translateX(-50%) scale(0) rotate(-50deg); } to { transform: translateX(-50%) scale(1) rotate(0); } }
+  .plant-meta { text-align: center; font-size: 13px; color: var(--ink-faint); margin-top: 6px; font-style: italic; letter-spacing: .02em; }
+
+  /* reader: plant beside the text on desktop, hidden on mobile */
+  .reader-layout { display: flex; gap: 30px; align-items: flex-start; }
+  .plant-side { flex: none; width: 190px; position: sticky; top: 26px; }
+  .reader-main { flex: 1; min-width: 0; }
+  @media (max-width: 768px) {
+    .reader-layout { display: block; }
+    .plant-side { display: none; }
+  }
+
+  /* look-back during recall */
+  .peek-btn { display: block; margin: 20px auto 0; background: none; border: none; cursor: pointer;
+    font-family: "Newsreader", serif; font-style: italic; font-size: 14px; color: var(--ink-faint);
+    border-bottom: 1px dotted var(--ink-faint); padding-bottom: 1px; transition: .18s; }
+  .peek-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .peek { margin-top: 14px; background: var(--paper-deep); border: 1px dashed var(--line);
+    border-radius: 14px; padding: 18px 22px; color: var(--ink-soft); font-size: 16px; line-height: 1.65;
+    animation: rise .3s ease both; }
+  .peek p + p { margin-top: 12px; }
+
+  .chunk-card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
+    box-shadow: var(--shadow); padding: 38px 36px; margin-top: 16px; min-height: 220px;
+  }
+  .chunk-card p { font-size: 21px; line-height: 1.72; color: var(--ink); }
+  .chunk-card p + p { margin-top: 18px; }
+  .reading-time { font-size: 12.5px; color: var(--ink-faint); letter-spacing: .14em; text-transform: uppercase;
+    margin-bottom: 18px; display: flex; align-items: center; gap: 8px; }
+  .reading-time::before { content: ""; width: 18px; height: 1.5px; background: var(--accent-soft); }
+
+  .advance { display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 22px; }
+  .btn.ghost { background: transparent; color: var(--ink-soft); box-shadow: none; border: 1px solid var(--line); }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent-soft); box-shadow: none; transform: translateY(-1px); }
+  .btn.ghost:disabled { opacity: .4; }
+
+  /* recall question */
+  .recall { margin-top: 16px; animation: rise .4s ease both; }
+  .recall .q {
+    font-family: "Fraunces", serif; font-size: 21px; line-height: 1.45; color: var(--ink);
+    background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent);
+    border-radius: 16px; padding: 22px 24px; box-shadow: var(--shadow);
+  }
+  .recall .q .label { display: block; font-family: "Newsreader", serif; font-style: italic; font-size: 14px;
+    color: var(--accent); margin-bottom: 8px; letter-spacing: .02em; }
+  .opts { display: grid; gap: 10px; margin-top: 14px; }
+  .opt {
+    text-align: left; font-family: "Newsreader", serif; font-size: 17px; color: var(--ink);
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px;
+    cursor: pointer; transition: .16s; box-shadow: 0 3px 10px rgba(120,100,70,.05);
+  }
+  .opt:hover { border-color: var(--accent-soft); transform: translateX(2px); }
+  .opt:disabled { cursor: default; }
+  .opt.correct { background: var(--sage-soft); border-color: var(--sage); color: #44513a; }
+  .opt.wrong { background: #f3e2d6; border-color: var(--accent); }
+  .opt .mark { float: right; font-family: "Fraunces", serif; }
+  .recall-foot { margin-top: 16px; display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+  .nudge { font-style: italic; color: var(--sage); font-size: 16px; opacity: 0; transition: opacity .3s; }
+  .nudge.show { opacity: 1; }
+  .nudge.miss { color: var(--accent); }
+
+  /* ---------- finish ---------- */
+  .finish { text-align: center; padding-top: 24px; }
+  .bloom { width: 180px; height: 180px; margin: 0 auto 10px; position: relative; }
+  .bloom .ring {
+    position: absolute; inset: 0; margin: auto; border-radius: 50%;
+    border: 2px solid var(--accent-soft); animation: bloomring 2.4s ease-out infinite;
+  }
+  .bloom .ring:nth-child(2) { animation-delay: .6s; }
+  .bloom .ring:nth-child(3) { animation-delay: 1.2s; }
+  @keyframes bloomring { 0% { transform: scale(.25); opacity: .9; } 100% { transform: scale(1); opacity: 0; } }
+  .bloom .core {
+    position: absolute; inset: 0; margin: auto; width: 78px; height: 78px; border-radius: 50%;
+    background: radial-gradient(circle at 36% 32%, #f3d39a, var(--accent));
+    box-shadow: 0 0 40px rgba(217,159,83,.5); animation: pop .8s cubic-bezier(.2,1.4,.4,1) both;
+  }
+  @keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
+  .finish h1 { font-family: "Fraunces", serif; font-weight: 400; font-size: 40px; letter-spacing: -.02em; margin-bottom: 6px; }
+  .finish h1 em { font-style: italic; color: var(--accent); }
+  .recap {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 20px 24px; margin: 22px auto 8px; max-width: 52ch; box-shadow: var(--shadow);
+    font-size: 18px; color: var(--ink-soft); font-style: italic;
+  }
+  .recap b { font-style: normal; font-family: "Fraunces", serif; color: var(--accent); font-weight: 500; display: block; margin-bottom: 6px; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; }
+  .door-note { color: var(--ink-soft); margin: 18px 0 24px; font-size: 16px; }
+  .door-note b { font-family: "Fraunces", serif; color: var(--sage); }
+  .finish .btn { margin: 4px 6px; }
+
+  /* ---------- calendar ---------- */
+  .cal-head { font-family: "Fraunces", serif; font-weight: 400; font-size: 30px; margin-bottom: 4px; }
+  .cal-head em { font-style: italic; color: var(--accent); }
+  .cal-sub { color: var(--ink-soft); margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 9px; }
+  .dow { text-align: center; font-family: "Fraunces", serif; font-size: 12px; color: var(--ink-faint);
+    text-transform: uppercase; letter-spacing: .1em; padding-bottom: 4px; }
+  .cell {
+    aspect-ratio: 1; border-radius: 14px; border: 1px solid var(--line); background: var(--card);
+    display: flex; align-items: flex-start; justify-content: flex-end; padding: 7px 9px;
+    font-family: "Fraunces", serif; font-size: 13px; color: var(--ink-faint); position: relative;
+    transition: .2s;
+  }
+  .cell.blank { background: transparent; border: none; }
+  .cell.future { opacity: .5; }
+  .cell.today { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(192,112,58,.12); }
+  .cell.open {
+    background: radial-gradient(circle at 50% 60%, #f3d39a 0%, var(--gold) 70%);
+    border-color: var(--accent); color: #5c3a1c;
+  }
+  .cell.open::before {
+    content: "✦"; position: absolute; left: 9px; bottom: 7px; font-size: 16px; color: var(--accent);
+  }
+  .cal-foot { margin-top: 26px; text-align: center; color: var(--ink-faint); font-style: italic; font-size: 15px; }
+  .cal-foot b { color: var(--sage); font-style: normal; font-family: "Fraunces", serif; }
+
+  /* loading */
+  .loading { text-align: center; padding: 60px 0; color: var(--ink-soft); }
+  .loading .seed { width: 34px; height: 34px; border-radius: 50%; margin: 0 auto 18px;
+    background: radial-gradient(circle at 35% 30%, #f0c98a, var(--accent)); animation: breathe 1.4s ease-in-out infinite; }
+  @keyframes breathe { 0%,100% { transform: scale(.8); opacity: .6; } 50% { transform: scale(1.1); opacity: 1; } }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: var(--paper); padding: 12px 22px; border-radius: 100px;
+    font-family: "Fraunces", serif; font-size: 14px; opacity: 0; transition: .3s; z-index: 50; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 560px) {
+    .chunk-card { padding: 28px 22px; }
+    .chunk-card p { font-size: 19px; }
+    .hero p { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===================== HOME ===================== -->
+  <section id="home" class="screen active">
+    <div class="mast">
+      <div class="brand" onclick="go('home')"><span class="seed"></span>Finish<em>It</em></div>
+      <button class="nav-link" onclick="go('calendar')">This month ✦</button>
+    </div>
+
+    <div class="hero">
+      <h1>Drop the article<br>you'll <em>never</em> get to.</h1>
+      <p>It becomes sixty-second bites with a tiny memory check after each. One small thing at a time — until, somehow, you've finished.</p>
+    </div>
+
+    <div class="paste">
+      <textarea id="input" placeholder="Paste an article link… or just paste the text itself."></textarea>
+      <div class="paste-bar">
+        <span class="hint" id="inputHint">Links work for most public articles. Paywalled? Paste the text.</span>
+        <button class="btn accent" id="startBtn" onclick="startFromInput()">Begin →</button>
+      </div>
+    </div>
+
+    <div class="samples">
+      <span>or try one:</span>
+      <button class="chip" onclick="startSample(0)">Why we procrastinate</button>
+      <button class="chip" onclick="startSample(1)">The science of awe</button>
+    </div>
+
+    <div class="shelf">
+      <h2>Your shelf</h2>
+      <div id="shelf"></div>
+    </div>
+  </section>
+
+  <!-- ===================== READER ===================== -->
+  <section id="reader" class="screen">
+    <div class="reader-top">
+      <button class="quit" onclick="quitReading()" title="Back to shelf">←</button>
+      <div class="read-title" id="readTitle"></div>
+    </div>
+
+    <div class="reader-layout">
+      <aside class="plant-side">
+        <div id="plant"></div>
+        <div class="plant-meta" id="plantMeta"></div>
+      </aside>
+      <div class="reader-main">
+        <div id="readBody"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== FINISH ===================== -->
+  <section id="finish" class="screen">
+    <div class="finish">
+      <div class="bloom"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="core"></div></div>
+      <h1>Wait — you <em>finished</em> it.</h1>
+      <div class="recap" id="recap"></div>
+      <div class="door-note" id="doorNote"></div>
+      <button class="btn accent" onclick="go('home')">Back to the shelf</button>
+      <button class="btn" onclick="go('calendar')">See this month</button>
+    </div>
+  </section>
+
+  <!-- ===================== CALENDAR ===================== -->
+  <section id="calendar" class="screen">
+    <div class="mast">
+      <div class="brand" onclick="go('home')"><span class="seed"></span>Finish<em>It</em></div>
+      <button class="nav-link" onclick="go('home')">← Shelf</button>
+    </div>
+    <div class="cal-head" id="calTitle"></div>
+    <div class="cal-sub">Finish anything, and the day opens. Empty days are just doors you haven't reached — no streak to break.</div>
+    <div class="grid" id="cal"></div>
+    <div class="cal-foot" id="calFoot"></div>
+  </section>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   Finish It — prototype logic (client-side, localStorage)
+   ============================================================ */
+
+const WORDS_PER_CHUNK = 105;   // ~60s of reading
+const STOP = new Set("the a an and or but of to in on at for with from by as is are was were be been being this that these those it its their his her our your my we you they he she them us not no so if then than into about over under more most very can will just also which who whom whose what when where why how each any all some such only own same other another".split(" "));
+
+/* ---------- storage ---------- */
+const DB = {
+  load() { try { return JSON.parse(localStorage.getItem("finishit") || "{}"); } catch { return {}; } },
+  save(d) { localStorage.setItem("finishit", JSON.stringify(d)); },
+};
+let state = Object.assign({ articles: [], days: {} }, DB.load());
+function persist() { DB.save(state); }
+
+/* ---------- sample articles ---------- */
+const SAMPLES = [
+  { title: "Why We Procrastinate", source: "sample",
+    text: `Procrastination is not really about laziness. Researchers who study it now describe it as a problem of mood regulation, not time management. When a task makes us feel anxious, bored, or insecure, putting it off offers immediate relief. That relief is the reward, and the brain quietly learns to repeat it.
+
+The catch is that the relief is temporary and the task does not disappear. Instead it returns later, often larger and now wrapped in guilt. This is why procrastination tends to feed on itself. Each delay makes the next attempt feel heavier, because we are no longer just facing the work, we are facing the work plus the shame of having avoided it.
+
+One surprisingly effective response is self-compassion. Studies have found that students who forgave themselves for procrastinating on one task were less likely to procrastinate on the next. Letting go of the guilt removed the very emotion that made avoidance tempting in the first place.
+
+Another tactic is to shrink the task until starting feels almost trivial. The hardest moment is usually the transition into the work, not the work itself. If you tell yourself you will write for only two minutes, the resistance often dissolves once you have begun, and momentum carries you the rest of the way.
+
+So the cure is rarely more discipline. It is reducing the emotional weight of beginning, and treating yourself kindly enough that the task stops feeling like a threat.` },
+  { title: "The Science of Awe", source: "sample",
+    text: `Awe is the feeling we get in the presence of something vast that we cannot easily explain. A towering mountain, a cathedral, a piece of music, the night sky. For a long time science ignored awe, treating it as too fuzzy to measure. That has changed.
+
+Researchers now find that awe does something unusual to the self. In its grip, people report feeling smaller, but not in a bad way. The sense of a shrinking ego is paired with a feeling of connection to something larger. Time seems to slow, and people say they have more of it to give.
+
+This has practical effects. After experiencing awe, people behave more generously toward strangers, and they describe their daily worries as less pressing. Awe appears to pull attention away from the self and toward the world, which may be why it leaves us feeling refreshed rather than drained.
+
+You do not need a mountain to find it. Studies show that even small everyday moments, a striking tree, a sudden change in weather, a child noticing something for the first time, can produce a measurable dose of awe if we pause to take them in.
+
+The lesson is gentle but real. Seeking out the vast, even briefly, may be one of the simplest ways to quiet the anxious, self-focused mind.` },
+];
+
+/* ---------- chunking ---------- */
+function splitSentences(text) {
+  // keep paragraph hints, then split into sentences
+  return text
+    .replace(/\s+/g, " ")
+    .match(/[^.!?]+[.!?]+(?:["')\]]+)?|\S+$/g) || [text];
+}
+function wordCount(s) { return (s.trim().match(/\S+/g) || []).length; }
+
+function chunkText(text) {
+  // 1. break into paragraphs, normalising internal whitespace
+  const paras = text.split(/\n{2,}/).map(p => p.replace(/[ \t]+/g, " ").trim()).filter(Boolean);
+  // 2. any paragraph much bigger than a bite gets split on sentence boundaries
+  const blocks = [];
+  for (const p of paras) {
+    if (wordCount(p) > WORDS_PER_CHUNK * 1.5) {
+      const sents = splitSentences(p).map(s => s.trim()).filter(Boolean);
+      let cur = [], c = 0;
+      for (const s of sents) {
+        cur.push(s); c += wordCount(s);
+        if (c >= WORDS_PER_CHUNK) { blocks.push(cur.join(" ")); cur = []; c = 0; }
+      }
+      if (cur.length) blocks.push(cur.join(" "));
+    } else {
+      blocks.push(p);
+    }
+  }
+  // 3. pack whole blocks into chunks, keeping paragraph breaks (\n\n) intact
+  const chunks = [];
+  let cur = [], count = 0;
+  for (const b of blocks) {
+    const w = wordCount(b);
+    if (count > 0 && count + w > WORDS_PER_CHUNK * 1.35) { chunks.push(cur.join("\n\n")); cur = []; count = 0; }
+    cur.push(b); count += w;
+    if (count >= WORDS_PER_CHUNK) { chunks.push(cur.join("\n\n")); cur = []; count = 0; }
+  }
+  if (cur.length) {
+    if (chunks.length && count < 45) chunks[chunks.length - 1] += "\n\n" + cur.join("\n\n");
+    else chunks.push(cur.join("\n\n"));
+  }
+  return chunks.length ? chunks : [text];
+}
+
+/* ---------- recall question (cloze) ---------- */
+function salientWords(text) {
+  const seen = new Set(), out = [];
+  for (const raw of text.match(/[A-Za-z][A-Za-z'-]{4,}/g) || []) {
+    const w = raw.toLowerCase();
+    if (STOP.has(w) || seen.has(w)) continue;
+    seen.add(w);
+    // score: prefer capitalized (proper-ish) and longer words
+    const cap = /^[A-Z]/.test(raw) ? 2 : 0;
+    out.push({ word: raw, score: raw.length + cap });
+  }
+  return out.sort((a, b) => b.score - a.score);
+}
+
+function makeQuestion(chunk, pool) {
+  const cands = salientWords(chunk);
+  if (!cands.length) return null;
+  const target = cands[0].word;
+  // sentence containing target
+  const sentences = splitSentences(chunk);
+  let host = sentences.find(s => s.toLowerCase().includes(target.toLowerCase())) || chunk;
+  host = host.trim();
+  const blanked = host.replace(new RegExp("\\b" + target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i"), "______");
+  if (blanked === host) return null;
+  // distractors from the article-wide pool, similar-ish, not the answer
+  const distract = pool
+    .filter(w => w.toLowerCase() !== target.toLowerCase() && Math.abs(w.length - target.length) <= 4)
+    .filter((w, i, a) => a.indexOf(w) === i);
+  shuffle(distract);
+  const options = shuffle([target, ...distract.slice(0, 3)]);
+  if (options.length < 2) return null;
+  return { prompt: blanked, options, answer: target };
+}
+
+function buildQuestions(chunks) {
+  const pool = [];
+  chunks.forEach(c => salientWords(c).slice(0, 6).forEach(o => pool.push(o.word)));
+  return chunks.map(c => makeQuestion(c, pool));
+}
+
+function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+/* ---------- article creation ---------- */
+function makeArticle(title, source, text) {
+  const chunks = chunkText(text);
+  const summary = (splitSentences(text)[0] || text).trim().replace(/\s+/g, " ").slice(0, 200);
+  const art = {
+    id: "a" + Date.now(),
+    title: title || "Untitled reading",
+    source: source || "pasted",
+    chunks,
+    questions: buildQuestions(chunks),
+    progress: 0,
+    done: false,
+    summary,
+    created: Date.now(),
+  };
+  state.articles.unshift(art);
+  persist();
+  return art;
+}
+
+/* ---------- input handling ---------- */
+const URL_RE = /^https?:\/\/\S+$/i;
+
+async function startFromInput() {
+  const raw = document.getElementById("input").value.trim();
+  if (!raw) { toast("Paste a link or some text first"); return; }
+  const btn = document.getElementById("startBtn");
+  if (URL_RE.test(raw)) {
+    btn.disabled = true; btn.textContent = "Fetching…";
+    try {
+      const art = await fetchArticle(raw);
+      document.getElementById("input").value = "";
+      openArticle(art);
+    } catch (e) {
+      toast("Couldn't read that link — try pasting the text instead");
+    } finally { btn.disabled = false; btn.textContent = "Begin →"; }
+  } else {
+    if (wordCount(raw) < 40) { toast("That's pretty short already — paste a longer piece"); return; }
+    const firstLine = raw.split("\n").map(s => s.trim()).find(Boolean) || "";
+    const title = firstLine.length <= 80 ? firstLine : "Pasted reading";
+    const body = title === firstLine ? raw.slice(raw.indexOf(firstLine) + firstLine.length).trim() || raw : raw;
+    const art = makeArticle(title, "pasted", body);
+    document.getElementById("input").value = "";
+    openArticle(art);
+  }
+}
+
+async function fetchArticle(url) {
+  // Jina reader returns clean markdown for most public pages, CORS-friendly.
+  const res = await fetch("https://r.jina.ai/" + url);
+  if (!res.ok) throw new Error("fetch failed");
+  const md = await res.text();
+  let title = (md.match(/^Title:\s*(.+)$/m) || [])[1] || url;
+  let body = md;
+  const marker = md.indexOf("Markdown Content:");
+  if (marker !== -1) body = md.slice(marker + "Markdown Content:".length);
+  body = cleanMarkdown(body);
+  if (wordCount(body) < 60) throw new Error("too short");
+  return makeArticle(title.trim(), hostOf(url), body);
+}
+
+const BOILER = /^(table of contents|contents|in this article|share( this)?|subscribe|sign in|sign up|log ?in|menu|newsletter|advertisement|advert|sponsored|related( articles| posts| reading)?|read (more|next)|recommended|more from|follow us|comments?|leave a comment|cookies?|accept all|privacy policy|terms of|copyright|all rights reserved|skip to (content|main)|search|tags?:|categories?:|posted (on|in)|published|updated|by [a-z.]+ ?[a-z.]*$|\d+ min read|photo(graph)?( by| credit)|image:|getty|reuters)/i;
+
+function cleanMarkdown(md) {
+  md = md.replace(/\r/g, "");
+  const out = [];
+  for (const raw of md.split(/\n{2,}/)) {
+    const linkCount = (raw.match(/\]\(/g) || []).length;   // markdown link density (before stripping)
+    const p = raw
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, "")                // images
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")             // links -> text
+      .replace(/^#{1,6}\s*/gm, "")                         // heading marks
+      .replace(/[*_`>|]/g, "")                             // md symbols + table pipes
+      .replace(/^\s*[-•\d.]+\s+/gm, "")                    // list / numbered bullets
+      .split("\n").map(l => l.trim()).filter(Boolean).join(" ").trim();
+    if (!p) continue;
+    const words = wordCount(p);
+    if (BOILER.test(p)) continue;                          // nav / metadata / boilerplate
+    if (linkCount >= 3 && words / Math.max(linkCount, 1) < 9) continue;  // link-dense TOC/menu
+    if (words < 8 && !/[.!?]["')\]]?$/.test(p)) continue;  // short fragment that isn't a sentence
+    out.push(p);
+  }
+  // shave leading/trailing cruft (bylines, dates, share rows) that slipped through
+  while (out.length > 1 && wordCount(out[0]) < 12) out.shift();
+  while (out.length > 1 && wordCount(out[out.length - 1]) < 8) out.pop();
+  return out.join("\n\n");
+}
+function hostOf(url) { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return "link"; } }
+
+function startSample(i) {
+  const s = SAMPLES[i];
+  const existing = state.articles.find(a => a.title === s.title && !a.done);
+  const art = existing || makeArticle(s.title, s.source, s.text);
+  openArticle(art);
+}
+
+/* ============================================================
+   READER
+   ============================================================ */
+let active = null;
+let phase = "read"; // read | quiz
+
+function openArticle(art) {
+  active = art;
+  document.getElementById("readTitle").textContent = art.title;
+  if (art.done) art.progress = 0; // re-read from start
+  active.view = active.progress;  // where you're currently looking
+  phase = "read";
+  renderReader();
+  go("reader");
+}
+
+const FLOWER_SVG = (() => {
+  let petals = "";
+  for (let a = 0; a < 360; a += 45)
+    petals += `<ellipse cx="30" cy="17" rx="6.5" ry="12" fill="url(#pet)" transform="rotate(${a} 30 30)"/>`;
+  return `<svg class="flower" width="58" height="58" viewBox="0 0 60 60">
+    <defs><radialGradient id="pet" cx="50%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#f6d79a"/><stop offset="100%" stop-color="#d99f53"/>
+    </radialGradient></defs>
+    ${petals}<circle cx="30" cy="30" r="9" fill="#a96e42"/><circle cx="30" cy="30" r="5" fill="#7a4e2c"/>
+  </svg>`;
+})();
+
+function renderPlant() {
+  const total = active.chunks.length, prog = active.progress;
+  const maxH = 112, base = 30;
+  const done = prog >= total;
+  const stemH = total ? Math.max((prog / total) * maxH, prog > 0 ? 14 : 8) : 8;
+  let parts = `<div class="plant"><div class="pot"></div><div class="stem" style="height:${stemH}px"></div>`;
+  for (let i = 0; i < total; i++) {
+    const y = base + ((i + 0.8) / total) * maxH;
+    const side = i % 2 === 0 ? "left" : "right";
+    parts += `<div class="leaf ${side} ${i < prog ? "grown" : ""}" style="bottom:${y.toFixed(0)}px"></div>`;
+  }
+  parts += done
+    ? `<div class="flower" style="bottom:${base + maxH}px">${FLOWER_SVG}</div>`
+    : `<div class="bud" style="bottom:${(base + stemH).toFixed(0)}px"></div>`;
+  parts += `</div>`;
+  document.getElementById("plant").innerHTML = parts;
+
+  const leaves = Math.min(prog, total);
+  document.getElementById("plantMeta").textContent = done
+    ? "in full bloom — you read the whole thing"
+    : `${leaves} ${leaves === 1 ? "leaf" : "leaves"} so far · bite ${active.view + 1} of ${total}`;
+}
+
+function paraHtml(text) {
+  return text.split(/\n{2,}/).map(p => `<p>${escapeHtml(p.trim())}</p>`).join("");
+}
+
+function renderReader() {
+  renderPlant();
+  const body = document.getElementById("readBody");
+  const i = active.view;
+  const text = active.chunks[i];
+  const atFrontier = i === active.progress;       // furthest point — advancing here triggers the quiz
+  const fwd = atFrontier
+    ? `<button class="btn" onclick="finishedReading()">I've read this →</button>`
+    : `<button class="btn" onclick="nextChunk()">Next →</button>`;
+  body.innerHTML = `
+    <div class="chunk-card">
+      <div class="reading-time">a sixty-second bite · ${i + 1} of ${active.chunks.length}</div>
+      ${paraHtml(text)}
+    </div>
+    <div class="advance">
+      <button class="btn ghost" onclick="prevChunk()" ${i === 0 ? "disabled" : ""}>← Back</button>
+      ${fwd}
+    </div>`;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function finishedReading() {
+  const q = active.questions[active.progress];
+  if (!q) { advanceChunk(); return; }   // no question for this chunk
+  phase = "quiz";
+  const body = document.getElementById("readBody");
+  body.innerHTML = `
+    <div class="recall">
+      <div class="q"><span class="label">quick — try it from memory first</span>${escapeHtml(q.prompt)}</div>
+      <div class="opts" id="opts"></div>
+      <div class="recall-foot">
+        <span class="nudge" id="nudge"></span>
+        <button class="btn" id="contBtn" style="display:none" onclick="advanceChunk()">Continue →</button>
+      </div>
+      <button class="peek-btn" id="peekBtn" onclick="togglePeek()">↩ look back at the passage</button>
+      <div class="peek" id="peek" hidden></div>
+    </div>`;
+  const opts = document.getElementById("opts");
+  q.options.forEach(opt => {
+    const b = document.createElement("button");
+    b.className = "opt"; b.textContent = opt;
+    b.onclick = () => answer(b, opt, q);
+    opts.appendChild(b);
+  });
+  window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+}
+
+function answer(btn, choice, q) {
+  const correct = choice.toLowerCase() === q.answer.toLowerCase();
+  document.querySelectorAll(".opt").forEach(b => {
+    b.disabled = true;
+    if (b.textContent.toLowerCase() === q.answer.toLowerCase()) { b.classList.add("correct"); b.querySelector(".mark")?.remove(); b.innerHTML += '<span class="mark">✓</span>'; }
+  });
+  const nudge = document.getElementById("nudge");
+  if (correct) { nudge.textContent = "that's it."; nudge.className = "nudge show"; }
+  else { btn.classList.add("wrong"); nudge.textContent = "close — now you'll remember it."; nudge.className = "nudge show miss"; }
+  document.getElementById("contBtn").style.display = "inline-block";
+}
+
+function togglePeek() {
+  const peek = document.getElementById("peek"), btn = document.getElementById("peekBtn");
+  if (peek.hidden) {
+    peek.innerHTML = paraHtml(active.chunks[active.progress]);
+    peek.hidden = false;
+    btn.textContent = "× hide the passage";
+  } else {
+    peek.hidden = true;
+    btn.textContent = "↩ look back at the passage";
+  }
+}
+
+function prevChunk() {
+  if (active.view > 0) { active.view--; phase = "read"; renderReader(); }
+}
+
+function nextChunk() {
+  // only used when reviewing an already-completed chunk — no quiz re-take
+  if (active.view < active.progress) { active.view++; phase = "read"; renderReader(); }
+}
+
+function advanceChunk() {
+  active.progress++;
+  active.view = active.progress;   // follow the frontier forward
+  persist();
+  if (active.progress >= active.chunks.length) { completeArticle(); return; }
+  phase = "read";
+  renderReader();
+}
+
+function quitReading() { persist(); go("home"); }
+
+/* ============================================================
+   FINISH
+   ============================================================ */
+function todayKey() { const d = new Date(); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
+
+function completeArticle() {
+  active.done = true;
+  active.finished = Date.now();
+  const firstOpen = !state.days[todayKey()];
+  state.days[todayKey()] = (state.days[todayKey()] || 0) + 1;
+  persist();
+
+  document.getElementById("recap").innerHTML = `<b>in one line</b>${escapeHtml(active.summary)}`;
+  document.getElementById("doorNote").innerHTML = firstOpen
+    ? `Today's door just <b>opened</b> on your calendar. ✦`
+    : `That's <b>${state.days[todayKey()]} finished</b> today. Today's door is wide open. ✦`;
+  go("finish");
+}
+
+/* ============================================================
+   CALENDAR
+   ============================================================ */
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DOW = ["S","M","T","W","T","F","S"];
+
+function renderCalendar() {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  document.getElementById("calTitle").innerHTML = `${MONTHS[m]} <em>${y}</em>`;
+  const grid = document.getElementById("cal");
+  grid.innerHTML = "";
+  DOW.forEach(d => { const e = document.createElement("div"); e.className = "dow"; e.textContent = d; grid.appendChild(e); });
+  const first = new Date(y, m, 1).getDay();
+  const days = new Date(y, m + 1, 0).getDate();
+  for (let i = 0; i < first; i++) { const e = document.createElement("div"); e.className = "cell blank"; grid.appendChild(e); }
+  let opened = 0;
+  for (let d = 1; d <= days; d++) {
+    const e = document.createElement("div");
+    const key = `${y}-${m}-${d}`;
+    const isToday = d === now.getDate();
+    const isFuture = d > now.getDate();
+    let cls = "cell";
+    if (state.days[key]) { cls += " open"; opened++; }
+    if (isToday) cls += " today";
+    if (isFuture) cls += " future";
+    e.className = cls;
+    e.textContent = d;
+    grid.appendChild(e);
+  }
+  document.getElementById("calFoot").innerHTML = opened
+    ? `<b>${opened}</b> ${opened === 1 ? "day" : "days"} opened this month. Each one was a thing you actually finished.`
+    : `No doors open yet this month. Finish one small thing and the first one lights up.`;
+}
+
+/* ============================================================
+   SHELF + NAV
+   ============================================================ */
+function renderShelf() {
+  const el = document.getElementById("shelf");
+  if (!state.articles.length) { el.innerHTML = `<div class="empty">Nothing here yet. Paste something above — the shelf fills as you go.</div>`; return; }
+  el.innerHTML = "";
+  state.articles.slice(0, 8).forEach(a => {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.onclick = () => openArticle(a);
+    const dots = a.chunks.map((_, i) => `<i class="${i < a.progress ? "on" : ""}"></i>`).join("");
+    row.innerHTML = `
+      <div class="ttl"><b>${escapeHtml(a.title)}</b><small>${escapeHtml(a.source)} · ${a.chunks.length} bites</small></div>
+      ${a.done ? `<span class="done-badge">finished ✦</span>`
+               : `<span class="mini-trail">${dots}</span>`}
+      <button class="row-del" title="Remove from shelf" onclick="deleteArticle('${a.id}', event)">×</button>`;
+    el.appendChild(row);
+  });
+}
+
+function deleteArticle(id, ev) {
+  ev.stopPropagation();
+  state.articles = state.articles.filter(a => a.id !== id);
+  persist();
+  renderShelf();
+  toast("Removed from your shelf");
+}
+
+function go(screen) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById(screen).classList.add("active");
+  if (screen === "home") renderShelf();
+  if (screen === "calendar") renderCalendar();
+  window.scrollTo({ top: 0 });
+}
+
+/* ---------- utils ---------- */
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+let toastT;
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+// allow Ctrl/Cmd+Enter to begin
+document.getElementById("input").addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") startFromInput();
+});
+
+renderShelf();
+</script>
+</body>
+</html>

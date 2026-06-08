@@ -1,0 +1,7 @@
+# Private planning notes — never publish
+plan/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.log
