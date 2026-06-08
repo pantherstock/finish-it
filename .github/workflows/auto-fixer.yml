@@ -1,0 +1,68 @@
+# Phase 3 — Auto-fixer
+# An issue labeled `agent-found` (filed by the /qa-tester tester) becomes a PR
+# with a fix, opened by Claude running here in CI. You review + merge; Cloudflare
+# redeploys. See plan/automation-learning-plan.md.
+
+name: Auto-fixer
+
+on:
+  issues:
+    # `labeled` fires whenever ANY label is added to ANY issue. We narrow to our
+    # own label in the job's `if:` below — that guard is the cost guardrail.
+    types: [labeled]
+
+# The action needs write access to push a branch, open a PR, and comment back.
+permissions:
+  contents: write        # create the fix branch + commits
+  pull-requests: write   # open the PR
+  issues: write          # comment on / link the issue
+
+jobs:
+  fix:
+    # Only run for issues carrying the tester's label. Without this, every label
+    # on every issue would spin up a (billed) Claude run.
+    if: github.event.label.name == 'agent-found'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          # ── AUTH: Claude Pro/Max subscription (no API credits) ──────────────
+          # Generate the token locally with:  claude setup-token
+          # then add it as a repo secret named CLAUDE_CODE_OAUTH_TOKEN
+          # (Settings → Secrets and variables → Actions → New repository secret).
+          # This draws on your Pro usage limits — the same quota as interactive
+          # Claude Code — instead of metered API billing.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          #
+          # ── ALTERNATIVE: metered API billing (isolated cost + spend cap) ────
+          # Comment out the line above and uncomment the line below, then add an
+          # ANTHROPIC_API_KEY secret instead. Use this if you'd rather not spend
+          # your Pro quota and want a hard spend cap in the Anthropic Console.
+          # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          # The task. GitHub injects the issue's title/body/number at run time.
+          prompt: |
+            A QA tester agent filed this issue against the Finish It app
+            (a single static file: index.html). Fix it.
+
+            Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
+
+            ${{ github.event.issue.body }}
+
+            Instructions:
+            - Make the smallest change to index.html that resolves the issue.
+            - Do NOT touch the plan/ folder (private notes) or unrelated code.
+            - Open a pull request. In the PR description, explain the fix and end
+              with "Closes #${{ github.event.issue.number }}" so merging closes the issue.
+            - If the issue is unclear or you can't reproduce it, comment on the
+              issue saying so instead of opening a PR.
+
+          # CLI flags passed through to Claude Code.
+          # --model: 'sonnet' is a cheaper/faster default well-suited to a small
+          #   single-file fix; switch to 'opus' for harder changes.
+          # --max-turns: caps the agent loop (a safety bound on work + cost).
+          claude_args: |
+            --model sonnet
+            --max-turns 15
