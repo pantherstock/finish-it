@@ -12,4 +12,4 @@ folder with any static host.
 
 ## Deploy
 
-Hosted as a static site on Cloudflare Pages (output directory: repo root).
+Hosted as a static site on Cloudflare Pages: https://finish-it.simyilin.workers.dev/
