@@ -735,7 +735,7 @@ function answer(btn, choice, q) {
   });
   const nudge = document.getElementById("nudge");
   if (correct) { nudge.textContent = "that's it."; nudge.className = "nudge show"; }
-  else { btn.classList.add("wrong"); nudge.textContent = "close — now you'll remember it."; nudge.className = "nudge show miss"; }
+  else { btn.classList.add("wrong"); btn.querySelector(".mark")?.remove(); btn.innerHTML += '<span class="mark">✗</span>'; nudge.textContent = "not quite — now you'll remember it."; nudge.className = "nudge show miss"; }
   document.getElementById("contBtn").style.display = "inline-block";
 }
 
