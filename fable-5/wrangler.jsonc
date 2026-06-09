@@ -1,0 +1,31 @@
+// Finish It (fable-5) — a second Worker on the same repo.
+//
+// Deploy by CLI:
+//   npx wrangler deploy --config fable-5/wrangler.jsonc
+//   npx wrangler secret put ANTHROPIC_API_KEY --config fable-5/wrangler.jsonc
+//
+// Or git-connected (like the main site): Cloudflare dashboard → Workers →
+// Create → import this same GitHub repo → set "Path to Wrangler configuration
+// file" to fable-5/wrangler.jsonc → add ANTHROPIC_API_KEY as a Secret in
+// Settings → Variables. Auto-deploys on merge to main.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "finish-it-fable5",
+  "compatibility_date": "2026-06-08",
+  "main": "worker.js",
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    // Relative to this config file → serves the fable-5 folder.
+    // Unmatched paths (i.e. /api/lesson) fall through to worker.js.
+    "directory": ".",
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    // Lesson model — see the note in worker.js before changing.
+    // Sonnet 4.6 is the quality/cost sweet spot ($3/$15 per MTok) for this
+    // article→lesson task; "claude-haiku-4-5" cuts cost, "claude-opus-4-8" max quality.
+    "MODEL": "claude-sonnet-4-6"
+  }
+}
