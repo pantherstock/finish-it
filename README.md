@@ -14,6 +14,12 @@ folder with any static host.
 
 Hosted as a static site on Cloudflare Pages: https://finish-it.simyilin.workers.dev/
 
+## Working on it
+
+New here (human or agent)? Start with **[AGENTS.md](AGENTS.md)** (how the code is
+laid out and how to make a change), then **[FEATURES.md](FEATURES.md)** (what the app
+does) and **[TEST-EVIDENCE.md](TEST-EVIDENCE.md)** (the checklist to verify before a PR).
+
 ## How it's maintained
 
 An autonomous QA → fix loop with GitHub as the orchestrator — a human gate before
