@@ -1,0 +1,5 @@
+# type: short description (≤72 chars)
+# Types: feat | fix | ci | chore | docs
+#
+# Optional body — explain WHY, not what (the diff shows what).
+# Leave a blank line between subject and body.

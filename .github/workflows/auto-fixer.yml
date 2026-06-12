@@ -45,20 +45,29 @@ jobs:
 
           # The task. GitHub injects the issue's title/body/number at run time.
           prompt: |
-            A QA tester agent filed this issue against the Finish It app
-            (a single static file: index.html). Fix it.
+            Fix this issue in the Finish It app (a single static file: index.html).
 
             Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
 
             ${{ github.event.issue.body }}
 
             Instructions:
-            - Make the smallest change to index.html that resolves the issue.
-            - Do NOT touch the plan/ folder (private notes) or unrelated code.
-            - Open a pull request. In the PR description, explain the fix and end
-              with "Closes #${{ github.event.issue.number }}" so merging closes the issue.
-            - If the issue is unclear or you can't reproduce it, comment on the
-              issue saying so instead of opening a PR.
+            - Before writing any code, check if the issue body references a research
+              brief (e.g. "docs/research/<capability>.md"). If it does, read that file
+              first — it contains best practices, API guidance, and gotchas that must
+              inform your implementation.
+            - Implement exactly what the issue's "Acceptance check" items describe.
+              Treat the "Implementation notes" section as binding constraints, not
+              suggestions.
+            - Make the smallest change to index.html that satisfies the acceptance
+              check. Do not refactor unrelated code or add unrequested features.
+            - Do NOT touch the plan/ folder, fable-5/, or any file outside the
+              issue's stated scope.
+            - Open a pull request. In the PR body, list which acceptance check items
+              pass and end with "Closes #${{ github.event.issue.number }}" so merging
+              closes the issue.
+            - If the issue is unclear or contradictory, comment on the issue
+              explaining the ambiguity instead of opening a PR.
 
           # CLI flags passed through to Claude Code.
           # --model: 'sonnet' is a cheaper/faster default well-suited to a small

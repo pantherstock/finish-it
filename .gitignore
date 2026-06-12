@@ -1,6 +1,11 @@
 # Private planning notes — never publish
 plan/
 
+# Test tooling (installed transiently in CI, never committed)
+node_modules/
+package.json
+package-lock.json
+
 # OS / editor noise
 .DS_Store
 Thumbs.db
