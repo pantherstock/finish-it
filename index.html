@@ -408,6 +408,21 @@
    Finish It — prototype logic (client-side, localStorage)
    ============================================================ */
 
+/* ---------- observability ---------- */
+let _screen = 'home';
+function obsLog(msg, stack) {
+  try {
+    const raw = localStorage.getItem('finishit_obs');
+    const buf = raw ? JSON.parse(raw) : [];
+    if (buf.length && buf[buf.length - 1].msg === msg) return; // dedup runaway errors
+    buf.push({ ts: new Date().toISOString(), screen: _screen, msg: String(msg), stack: String(stack || '').slice(0, 500) });
+    if (buf.length > 50) buf.splice(0, buf.length - 50);
+    localStorage.setItem('finishit_obs', JSON.stringify(buf));
+  } catch (_) { /* never throw inside obsLog */ }
+}
+window.addEventListener('error', e => obsLog(e.message, e.error && e.error.stack));
+window.addEventListener('unhandledrejection', e => obsLog(e.reason && e.reason.message || String(e.reason), e.reason && e.reason.stack));
+
 const WORDS_PER_CHUNK = 105;   // ~60s of reading
 const STOP = new Set("the a an and or but of to in on at for with from by as is are was were be been being this that these those it its their his her our your my we you they he she them us not no so if then than into about over under more most very can will just also which who whom whose what when where why how each any all some such only own same other another".split(" "));
 
@@ -855,6 +870,7 @@ function deleteArticle(id, ev) {
 }
 
 function go(screen) {
+  _screen = screen;
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   document.getElementById(screen).classList.add("active");
   if (screen === "home") renderShelf();
