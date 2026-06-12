@@ -334,7 +334,7 @@
     </div>
 
     <div class="hero">
-      <h1>Drop the article<br>you'll <em>never</em> get to.</h1>
+      <h1 tabindex="-1" data-focus>Drop the article<br>you'll <em>never</em> get to.</h1>
       <p>It becomes sixty-second bites with a tiny memory check after each. One small thing at a time — until, somehow, you've finished.</p>
     </div>
 
@@ -371,7 +371,7 @@
         <div class="plant-meta" id="plantMeta"></div>
       </aside>
       <div class="reader-main">
-        <div id="readBody"></div>
+        <div id="readBody" tabindex="-1" data-focus></div>
       </div>
     </div>
   </section>
@@ -380,7 +380,7 @@
   <section id="finish" class="screen">
     <div class="finish">
       <div class="bloom"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="core"></div></div>
-      <h1>Wait — you <em>finished</em> it.</h1>
+      <h1 tabindex="-1" data-focus>Wait — you <em>finished</em> it.</h1>
       <div class="recap" id="recap"></div>
       <div class="door-note" id="doorNote"></div>
       <button class="btn accent" onclick="go('home')">Back to the shelf</button>
@@ -394,7 +394,7 @@
       <div class="brand" onclick="go('home')"><span class="seed"></span>Finish<em>It</em></div>
       <button class="nav-link" onclick="go('home')">← Shelf</button>
     </div>
-    <div class="cal-head" id="calTitle"></div>
+    <div class="cal-head" id="calTitle" tabindex="-1" data-focus></div>
     <div class="cal-sub">Finish anything, and the day opens. Empty days are just doors you haven't reached — no streak to break.</div>
     <div class="grid" id="cal"></div>
     <div class="cal-foot" id="calFoot"></div>
@@ -860,6 +860,7 @@ function go(screen) {
   if (screen === "home") renderShelf();
   if (screen === "calendar") renderCalendar();
   window.scrollTo({ top: 0 });
+  document.querySelector('#' + screen + ' [data-focus]')?.focus();
 }
 
 /* ---------- utils ---------- */
