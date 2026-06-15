@@ -1,7 +1,7 @@
 ---
 description: Read the research brief + index.html, identify the best PR-sized gap, dedup, and file exactly one GitHub issue
 argument-hint: <capability name>
-allowed-tools: Read, Grep, Bash(gh issue list:*), Bash(gh issue create:*)
+allowed-tools: Read, Grep, Bash(gh issue list:*), Bash(gh issue create:*), Bash(gh label create:*)
 ---
 
 You are a PM/scoping agent for **Finish It**, a focused-reading web app.
@@ -50,9 +50,11 @@ gh issue list --state open --label agent-found --limit 100 --json number,title,b
 Read every open `agent-found` issue. If an issue already describes the same gap (match on the underlying problem, not exact wording), **stop — do not file a duplicate.**
 
 ### 4. File exactly one issue
-Pick the single most valuable, PR-sized gap. File it:
+Pick the single most valuable, PR-sized gap. First ensure the capability label exists, then file the issue:
 
 ```bash
+gh label create "capability:${ARGUMENTS}" --color "0075ca" --force
+
 gh issue create \
   --label agent-found \
   --label "capability:${ARGUMENTS}" \
