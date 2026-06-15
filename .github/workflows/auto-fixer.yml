@@ -46,13 +46,13 @@ jobs:
           # The task. GitHub injects the issue's title/body/number at run time.
           prompt: |
             Fix this issue in the Finish It app (a single static file: index.html),
-            then loop until the quality gate is green — up to 3 fix attempts total.
+            then open a PR. Stop there — fix-loop.yml handles retries if CI fails.
 
             Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
 
             ${{ github.event.issue.body }}
 
-            ## Part 1 — Implement the fix
+            ## Steps
 
             - Before writing any code, check if the issue body references a research
               brief (e.g. "docs/research/<capability>.md"). If it does, read that file
@@ -71,36 +71,9 @@ jobs:
             - If the issue is unclear or contradictory, comment on the issue
               explaining the ambiguity instead of opening a PR. Stop here.
 
-            ## Part 2 — Wait for checks and fix if failing (max 3 attempts)
-
-            After the PR is open, run this loop (cap at 3 iterations total):
-
-            1. Wait for all checks to complete:
-               gh pr checks <PR_NUMBER> --watch --timeout 300
-               (Exit code 0 = all green. Non-zero = one or more failed.)
-
-            2. If all green: stop. The notify job will ping Discord automatically.
-
-            3. If any check failed, read the failing log:
-               gh run list --branch <branch-name> --limit 5 --json databaseId,name,conclusion
-               gh run view <failing-run-id> --log-failed
-
-            4. Diagnose the failure from the log. Fix index.html — smallest possible
-               change that addresses what the log reports. Then push:
-               git add index.html
-               git commit -m "fix: address <check-name> failure (attempt N)"
-               git push
-
-            5. Go back to step 1.
-
-            After 3 failed attempts, comment on the PR:
-            "Automated fix loop exhausted 3 attempts. Failing check: <name>. Last error: <summary>. Needs human review."
-            Then stop.
-
-          # --max-turns raised to 40 to cover: initial fix + PR open + up to 3
-          # check-wait/diagnose/fix cycles. Each cycle is ~5–8 turns.
-          # --allowedTools: gh run:* and gh pr checks:* added for the check loop.
+          # 15 turns is ample for: read issue + read brief + read/edit index.html +
+          # create branch + commit + open PR. Retries are handled by fix-loop.yml.
           claude_args: |
             --model sonnet
-            --max-turns 40
+            --max-turns 15
             --allowedTools "Edit,Read,Write,Glob,Grep,Bash(git:*),Bash(gh:*)"
