@@ -65,56 +65,43 @@ docs: add observability research brief
 
 ## The automation loop (how this repo maintains itself)
 
-Two entry points feed the same downstream pipeline:
+A **capability** is a named functional area of the app — `observability`, `accessibility`,
+`offline`, etc. Running `/ship <cap>` pushes a capability through a four-stage pipeline.
+**Stages 1–2 run locally in your Claude Code terminal. Stages 3–4 run in GitHub Actions CI.**
 
 ```
-                    ┌─ /research <cap>  ──┐
-                    │   writes brief       ├─ /scope-gaps <cap> ─┐
-                    │                     │   files one issue     │
-/ship <cap> ────────┘ (does both in one) ─┘                      │
-                                                                  ▼
-/qa-tester [persona] ────────────────────────────────► GitHub issue
- drives live app via Playwright MCP                    label: agent-found
- files deduped bug reports                             label: capability:X (if from /ship)
-                                                                  │
-                                          on label added ◄────────┘
-                                                  │
-                                                  ▼
-                                         auto-fixer.yml (CI)
-                                          claude-code-action
-                                          fix + open PR
-                                                  │
-                               ┌──────────────────┼──────────────────┐
-                               ▼                  ▼                  ▼
-                        quality-gate.yml    review.yml         (fix-loop: WIP)
-                        html-validate       adversarial         re-push if gate
-                        Playwright smoke    reviewer            fails (≤3 tries)
-                        → Discord on pass   → PR comment
-                                            advisory only
-                               └──────────────────┬──────────────────┘
-                                                  │
-                                        human reviews + merges
-                                                  │
-                                                  ▼
-                                        Cloudflare Workers deploy
-                                     (auto on merge to main)
+[local]  Stage 1 — /research <cap>    →  docs/research/<cap>.md
+                                          (best practices, APIs, what to avoid)
+
+[local]  Stage 2 — /scope-gaps <cap>  →  GitHub issue
+                                          labels: agent-found + capability:<cap>
+                                                       │
+                                           label added fires CI ▼
+
+[CI]     Stage 3 — auto-fixer.yml     →  branch + edits index.html + opens PR
+
+[CI]     Stage 4 — quality-gate.yml   →  html-validate + Playwright smoke → Discord on pass
+                   fix-loop.yml       →  re-patches index.html if gate fails (≤ 3 tries)
+                   review.yml         →  adversarial critique (advisory PR comment)
+                                                       │
+                                           human reviews + merges ▼
+
+                                          Cloudflare auto-redeploys
 ```
 
-### Skills / commands
+**`/ship <cap>`** is a shortcut that runs stages 1 and 2 in one command.
+Each local command is a skill file in `.claude/commands/`.
 
-| Command | What it does |
-|---------|-------------|
-| `/ship <cap>` | Research capability + scope one PR-sized issue + queue to CI (one-shot) |
-| `/research <cap>` | Write `docs/research/<cap>.md` brief + ping Discord |
-| `/scope-gaps <cap>` | Read brief + index.html, file one deduped issue |
-| `/qa-tester [persona]` | Drive live app as a persona, file deduped `agent-found` issues |
+**Alternative entry point:** `/qa-tester [persona]` drives the live app via Playwright MCP
+and files `agent-found` issues directly, bypassing stages 1–2.
 
 ### CI workflows
 
 | Workflow | Trigger | Job |
 |----------|---------|-----|
-| `auto-fixer.yml` | issue labeled `agent-found` | Fix + open PR (max 40 turns, loops on gate failure) |
+| `auto-fixer.yml` | issue labeled `agent-found` | Fix + open PR (max 15 turns) |
 | `quality-gate.yml` | PR touches `index.html` | html-validate + Playwright smoke; pings Discord on pass |
+| `fix-loop.yml` | `quality-gate.yml` completes with failure | Re-patch `index.html`; caps at 3 tries, then hands off to human |
 | `review.yml` | PR touches `index.html` | Adversarial critique against research brief; **advisory only** |
 
 ### Design decisions worth knowing
@@ -122,9 +109,6 @@ Two entry points feed the same downstream pipeline:
 - **Adversarial review is advisory, not a gate.** It posts a PR comment for the human
   reviewer to act on. Making it a hard gate risks false-positive blocks and circular
   auto-fix loops (the same model reviewing its own fix).
-- **The fix-loop inside `auto-fixer.yml` is a polling hack** (`gh pr checks --watch`
-  blocks the runner). The plan is to split it into a separate event-driven `fix-loop.yml`
-  triggered by `workflow_run` — that work is in progress (chunk 4).
 - **`capability:X` labels are auto-created** by `/scope-gaps` and `/ship` with
   `gh label create --force` before filing the issue.
 
