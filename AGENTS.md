@@ -65,16 +65,68 @@ docs: add observability research brief
 
 ## The automation loop (how this repo maintains itself)
 
+Two entry points feed the same downstream pipeline:
+
 ```
-/qa-tester [persona]  →  GitHub issue (label: agent-found)  →  Auto-fixer (CI)  →  PR  →  human merge  →  Cloudflare deploy
- (Playwright MCP)         dedup before filing                  claude-code-action    review gate
+                    ┌─ /research <cap>  ──┐
+                    │   writes brief       ├─ /scope-gaps <cap> ─┐
+                    │                     │   files one issue     │
+/ship <cap> ────────┘ (does both in one) ─┘                      │
+                                                                  ▼
+/qa-tester [persona] ────────────────────────────────► GitHub issue
+ drives live app via Playwright MCP                    label: agent-found
+ files deduped bug reports                             label: capability:X (if from /ship)
+                                                                  │
+                                          on label added ◄────────┘
+                                                  │
+                                                  ▼
+                                         auto-fixer.yml (CI)
+                                          claude-code-action
+                                          fix + open PR
+                                                  │
+                               ┌──────────────────┼──────────────────┐
+                               ▼                  ▼                  ▼
+                        quality-gate.yml    review.yml         (fix-loop: WIP)
+                        html-validate       adversarial         re-push if gate
+                        Playwright smoke    reviewer            fails (≤3 tries)
+                        → Discord on pass   → PR comment
+                                            advisory only
+                               └──────────────────┬──────────────────┘
+                                                  │
+                                        human reviews + merges
+                                                  │
+                                                  ▼
+                                        Cloudflare Workers deploy
+                                     (auto on merge to main)
 ```
 
-- `/qa-tester` (`.claude/commands/qa-tester.md`) drives the live app as a persona and
-  files **deduped** issues. Always dedup before filing — idempotency matters.
-- The auto-fixer (`.github/workflows/auto-fixer.yml`) fires when the `agent-found`
-  label is *added*, and opens a PR. It runs in "agent mode" and must branch/commit/PR
-  itself — that's why its `--allowedTools` includes `Bash(git:*),Bash(gh:*)`.
+### Skills / commands
+
+| Command | What it does |
+|---------|-------------|
+| `/ship <cap>` | Research capability + scope one PR-sized issue + queue to CI (one-shot) |
+| `/research <cap>` | Write `docs/research/<cap>.md` brief + ping Discord |
+| `/scope-gaps <cap>` | Read brief + index.html, file one deduped issue |
+| `/qa-tester [persona]` | Drive live app as a persona, file deduped `agent-found` issues |
+
+### CI workflows
+
+| Workflow | Trigger | Job |
+|----------|---------|-----|
+| `auto-fixer.yml` | issue labeled `agent-found` | Fix + open PR (max 40 turns, loops on gate failure) |
+| `quality-gate.yml` | PR touches `index.html` | html-validate + Playwright smoke; pings Discord on pass |
+| `review.yml` | PR touches `index.html` | Adversarial critique against research brief; **advisory only** |
+
+### Design decisions worth knowing
+
+- **Adversarial review is advisory, not a gate.** It posts a PR comment for the human
+  reviewer to act on. Making it a hard gate risks false-positive blocks and circular
+  auto-fix loops (the same model reviewing its own fix).
+- **The fix-loop inside `auto-fixer.yml` is a polling hack** (`gh pr checks --watch`
+  blocks the runner). The plan is to split it into a separate event-driven `fix-loop.yml`
+  triggered by `workflow_run` — that work is in progress (chunk 4).
+- **`capability:X` labels are auto-created** by `/scope-gaps` and `/ship` with
+  `gh label create --force` before filing the issue.
 
 ## Gotchas worth knowing
 
