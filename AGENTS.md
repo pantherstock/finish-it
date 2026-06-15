@@ -31,6 +31,27 @@ It's static — just open `index.html` in a browser, or serve the folder
 (`python -m http.server`). Live site: https://finish-it.simyilin.workers.dev
 (Cloudflare, auto-redeploys on merge to `main`).
 
+## Commit message format
+
+Use **conventional commits**: `type: short description` (≤72 chars on the first line).
+
+| Type | Use for |
+|------|---------|
+| `feat` | new feature or skill |
+| `fix` | bug fix in `index.html` |
+| `ci` | workflow / Actions changes |
+| `chore` | config, gitignore, tooling |
+| `docs` | research briefs, README, AGENTS.md |
+
+Optional body: explain **why**, not what (the diff shows what). Skip it for small changes.
+
+Examples:
+```
+feat: add global error boundary with localStorage ring buffer
+ci: add quality gate (html-validate + Playwright smoke test)
+docs: add observability research brief
+```
+
 ## How to make a change
 
 1. Edit `index.html` directly. Keep changes **small and surgical** — match the
