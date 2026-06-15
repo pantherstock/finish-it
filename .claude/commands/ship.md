@@ -46,8 +46,11 @@ Execute the gap-scoping workflow:
    gh issue list --state open --label agent-found --limit 100 --json number,title,body
    ```
    If an open issue already covers the same gap, skip filing — report which issue covers it.
-4. If no duplicate exists, file exactly one PR-sized, client-side-only issue:
+4. If no duplicate exists, file exactly one PR-sized, client-side-only issue.
+   First ensure the capability label exists, then file:
    ```bash
+   gh label create "capability:${ARGUMENTS}" --color "0075ca" --force
+
    gh issue create \
      --label agent-found \
      --label "capability:${ARGUMENTS}" \
