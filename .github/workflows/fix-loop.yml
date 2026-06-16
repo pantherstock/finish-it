@@ -1,0 +1,101 @@
+# Fix Loop — event-driven quality-gate retry
+#
+# Fires when the Quality Gate workflow completes with a failure on an
+# agent-found PR. Reads the failing log, patches index.html, and pushes.
+# Attempt count is tracked via fix-attempt-N PR labels (visible in UI,
+# easy to reset manually). Caps at 3 attempts then hands off to a human.
+#
+# workflow_run always executes in the default-branch context — the checkout
+# step below explicitly uses head_branch so we edit the PR branch, not main.
+
+name: Fix Loop
+
+on:
+  workflow_run:
+    workflows: ["Quality Gate"]
+    types: [completed]
+
+permissions:
+  contents: write        # push fix commits to the PR branch
+  pull-requests: write   # add fix-attempt-N label; post exhaustion comment
+  actions: read          # read failing run logs via gh run view
+  id-token: write        # claude-code-action OIDC token for GitHub auth
+
+jobs:
+  fix:
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find agent-found PR and check attempt count
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH="${{ github.event.workflow_run.head_branch }}"
+
+          PR=$(gh pr list --head "$BRANCH" --label "agent-found" \
+               --json number --jq '.[0].number // ""' --limit 1)
+
+          if [ -z "$PR" ]; then
+            echo "No agent-found PR on branch $BRANCH — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          ATTEMPTS=$(gh pr view "$PR" --json labels \
+            --jq '[.labels[].name | select(startswith("fix-attempt"))] | length')
+          NEXT=$((ATTEMPTS + 1))
+
+          if [ "$ATTEMPTS" -ge 3 ]; then
+            gh pr comment "$PR" \
+              --body "Fix loop exhausted 3 attempts — quality gate still failing. Needs human review."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          gh label create "fix-attempt-$NEXT" --color "d93f0b" --force
+          gh pr edit "$PR" --add-label "fix-attempt-$NEXT"
+
+          echo "pr=$PR" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "attempt=$NEXT" >> "$GITHUB_OUTPUT"
+
+      # Checkout the PR branch explicitly — workflow_run runs in main's context.
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.skip != 'true'
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        if: steps.guard.outputs.skip != 'true'
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          prompt: |
+            The quality gate failed on PR #${{ steps.guard.outputs.pr }}.
+            This is fix-loop attempt ${{ steps.guard.outputs.attempt }} of 3.
+
+            ## Steps
+
+            1. Read the failing log to understand what broke:
+               gh run view ${{ github.event.workflow_run.id }} --log-failed
+
+            2. Diagnose: identify the specific html-validate rule or Playwright
+               assertion that failed. Read the relevant part of index.html if needed.
+
+            3. Fix `index.html` — smallest possible change. Do not touch any other file.
+
+            4. Push:
+               git add index.html
+               git commit -m "ci(fix-loop): address quality gate failure (attempt ${{ steps.guard.outputs.attempt }})"
+               git push origin ${{ steps.guard.outputs.branch }}
+
+            If the failure is in a CI config file (not index.html), or you cannot
+            determine the root cause, comment on PR #${{ steps.guard.outputs.pr }}
+            explaining why, then stop without pushing.
+
+          claude_args: |
+            --model sonnet
+            --max-turns 15
+            --allowedTools "Edit,Read,Grep,Bash(git:*),Bash(gh:*)"
