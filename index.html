@@ -408,12 +408,30 @@
    Finish It — prototype logic (client-side, localStorage)
    ============================================================ */
 
+/* ---------- observability ---------- */
+let _screen = 'home';
+function obsLog(msg, stack) {
+  try {
+    const raw = localStorage.getItem('finishit_obs');
+    let buf;
+    try { buf = raw ? JSON.parse(raw) : []; } catch { buf = []; } // reset on corrupt data
+    const m = String(msg), s = String(stack || '').slice(0, 500);
+    const last = buf[buf.length - 1];
+    if (last && last.msg === m && last.stack === s) return; // dedup by message+stack
+    buf.push({ ts: new Date().toISOString(), screen: _screen, msg: m, stack: s });
+    if (buf.length > 50) buf.splice(0, buf.length - 50);
+    try { localStorage.setItem('finishit_obs', JSON.stringify(buf)); } catch { /* quota full */ }
+  } catch (_) { /* never throw inside obsLog */ }
+}
+window.addEventListener('error', e => obsLog(e.message, e.error && e.error.stack));
+window.addEventListener('unhandledrejection', e => obsLog(e.reason && e.reason.message || String(e.reason), e.reason && e.reason.stack));
+
 const WORDS_PER_CHUNK = 105;   // ~60s of reading
 const STOP = new Set("the a an and or but of to in on at for with from by as is are was were be been being this that these those it its their his her our your my we you they he she them us not no so if then than into about over under more most very can will just also which who whom whose what when where why how each any all some such only own same other another".split(" "));
 
 /* ---------- storage ---------- */
 const DB = {
-  load() { try { return JSON.parse(localStorage.getItem("finishit") || "{}"); } catch { return {}; } },
+  load() { try { return JSON.parse(localStorage.getItem("finishit") || "{}"); } catch (e) { obsLog(e.message, e.stack); return {}; } },
   save(d) { localStorage.setItem("finishit", JSON.stringify(d)); },
 };
 let state = Object.assign({ articles: [], days: {} }, DB.load());
@@ -562,6 +580,7 @@ async function startFromInput() {
       document.getElementById("input").value = "";
       openArticle(art);
     } catch (e) {
+      obsLog(e.message, e.stack);
       toast("Couldn't read that link — try pasting the text instead");
     } finally { btn.disabled = false; btn.textContent = "Begin →"; }
   } else {
@@ -855,6 +874,7 @@ function deleteArticle(id, ev) {
 }
 
 function go(screen) {
+  _screen = screen;
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   document.getElementById(screen).classList.add("active");
   if (screen === "home") renderShelf();
