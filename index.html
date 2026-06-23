@@ -435,6 +435,17 @@ function obsLog(msg, stack) {
 }
 window.addEventListener('error', e => obsLog(e.message, e.error && e.error.stack));
 window.addEventListener('unhandledrejection', e => obsLog(e.reason && e.reason.message || String(e.reason), e.reason && e.reason.stack));
+window.addEventListener('load', () => {
+  try {
+    const nav = performance.getEntriesByType('navigation')[0];
+    if (nav) obsLog(
+      `perf:load ttfb=${Math.round(nav.responseStart - nav.requestStart)}ms ` +
+      `dcl=${Math.round(nav.domContentLoadedEventEnd - nav.fetchStart)}ms ` +
+      `load=${Math.round(nav.loadEventEnd - nav.fetchStart)}ms`,
+      ''
+    );
+  } catch (_) {}
+});
 const _origConsoleError = console.error.bind(console);
 console.error = (...args) => {
   const firstErr = args.find(a => a instanceof Error);
