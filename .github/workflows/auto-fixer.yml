@@ -53,28 +53,36 @@ jobs:
 
             ${{ github.event.issue.body }}
 
-            ## Steps
+            ## Instructions — follow this order exactly to stay within the turn budget
 
-            - Before writing any code, check if the issue body references a research
-              brief (e.g. "docs/research/<capability>.md"). If it does, read that file
-              first — it contains best practices, API guidance, and gotchas that must
-              inform your implementation.
-            - Implement exactly what the issue's "Acceptance check" items describe.
-              Treat the "Implementation notes" section as binding constraints, not
-              suggestions.
-            - Make the smallest change to index.html that satisfies the acceptance
-              check. Do not refactor unrelated code or add unrequested features.
-            - Do NOT touch the plan/ folder, fable-5/, or any file outside the
-              issue's stated scope.
-            - Open a pull request. In the PR body, list which acceptance check items
-              pass and end with "Closes #${{ github.event.issue.number }}" so merging
-              closes the issue.
-            - If the issue is unclear or contradictory, comment on the issue
-              explaining the ambiguity instead of opening a PR. Stop here.
+            The issue body above contains everything you need: exact line numbers,
+            before/after code snippets, and gotchas. The research brief is already
+            quoted inline — do NOT read it separately.
 
-          # 15 turns is ample for: read issue + read brief + read/edit index.html +
-          # create branch + commit + open PR. Retries are handled by fix-loop.yml.
+            1. **Read only the specific lines you need.** Use Grep or Read with
+               offset+limit targeting the line numbers in Implementation notes.
+               Never read index.html in full.
+
+            2. **Make ALL edits before touching git.** Complete every Edit call
+               first. Do not git-diff, git-status, or re-read the file between edits.
+
+            3. **Batch branch + commit + push into one shell call:**
+               git checkout -b fix/issue-${{ github.event.issue.number }} && \
+               git add index.html && \
+               git commit -m "fix: ${{ github.event.issue.title }}" && \
+               git push -u origin fix/issue-${{ github.event.issue.number }}
+
+            4. **Open the PR** with gh pr create. List each acceptance-check item
+               in the body and end with "Closes #${{ github.event.issue.number }}".
+
+            5. **Stop immediately.** Do not verify CI, check PR state, or re-read anything.
+
+            If the issue is unclear or contradictory, post one comment explaining why,
+            then stop without making any edits.
+
+          # 25 turns covers: targeted reads (≤3) + edits (up to ~10 for complex issues)
+          # + one batched git call + gh pr create. fix-loop.yml handles CI retries.
           claude_args: |
             --model sonnet
-            --max-turns 15
+            --max-turns 25
             --allowedTools "Edit,Read,Write,Glob,Grep,Bash(git:*),Bash(gh:*)"

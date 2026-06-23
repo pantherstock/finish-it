@@ -98,5 +98,5 @@ jobs:
 
           claude_args: |
             --model sonnet
-            --max-turns 15
+            --max-turns 20
             --allowedTools "Edit,Read,Grep,Bash(git:*),Bash(gh:*)"
