@@ -780,6 +780,7 @@ function answer(btn, choice, q) {
 }
 
 function togglePeek() {
+  _lastAction = 'togglePeek';
   const peek = document.getElementById("peek"), btn = document.getElementById("peekBtn");
   if (peek.hidden) {
     peek.innerHTML = paraHtml(active.chunks[active.progress]);
