@@ -34,6 +34,9 @@ jobs:
 
             PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}
 
+            PR body (already fetched — do not call gh pr view):
+            ${{ github.event.pull_request.body }}
+
             ## Your job
             Find what is MISSING or WRONG. Look hard before concluding anything is fine.
 
@@ -42,13 +45,12 @@ jobs:
             1. Read the PR diff:
                gh pr diff ${{ github.event.pull_request.number }}
 
-            2. Find the issue this PR closes. Search the PR body for "Closes #N" or
-               "Fixes #N", then read that issue:
+            2. The PR body is shown above. Find "Closes #N" or "Fixes #N" in it,
+               then read that issue:
                gh issue view <N>
 
             3. If the issue body references a research brief (e.g. docs/research/<cap>.md),
-               read it now. Also run: glob docs/research/*.md — read any that are relevant
-               to the changes in this PR.
+               read that file directly with the Read tool. Do not glob all briefs.
 
             4. Read the changed portions of index.html with Read or Grep as needed.
 
@@ -88,5 +90,5 @@ jobs:
 
           claude_args: |
             --model sonnet
-            --max-turns 10
+            --max-turns 15
             --allowedTools "Read,Glob,Grep,Bash(gh pr:*),Bash(gh issue:*)"
