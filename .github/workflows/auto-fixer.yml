@@ -36,6 +36,7 @@ jobs:
           # This draws on your Pro usage limits — the same quota as interactive
           # Claude Code — instead of metered API billing.
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          allowed_bots: '*'
           #
           # ── ALTERNATIVE: metered API billing (isolated cost + spend cap) ────
           # Comment out the line above and uncomment the line below, then add an
