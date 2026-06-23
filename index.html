@@ -60,6 +60,7 @@
   .brand {
     font-family: "Fraunces", serif; font-weight: 600; font-size: 26px; letter-spacing: -.01em;
     display: flex; align-items: center; gap: 11px; cursor: pointer; color: var(--ink);
+    border: none; background: none;
   }
   .brand .seed {
     width: 26px; height: 26px; border-radius: 50%;
@@ -329,7 +330,7 @@
   <!-- ===================== HOME ===================== -->
   <section id="home" class="screen active">
     <div class="mast">
-      <div class="brand" onclick="go('home')"><span class="seed"></span>Finish<em>It</em></div>
+      <button class="brand" onclick="go('home')" aria-label="Finish It — go to home"><span class="seed"></span>Finish<em>It</em></button>
       <button class="nav-link" onclick="go('calendar')">This month ✦</button>
     </div>
 
@@ -339,7 +340,7 @@
     </div>
 
     <div class="paste">
-      <textarea id="input" placeholder="Paste an article link… or just paste the text itself."></textarea>
+      <textarea id="input" aria-label="Paste an article link or text" aria-describedby="inputHint" placeholder="Paste an article link… or just paste the text itself."></textarea>
       <div class="paste-bar">
         <span class="hint" id="inputHint">Links work for most public articles. Paywalled? Paste the text.</span>
         <button class="btn accent" id="startBtn" onclick="startFromInput()">Begin →</button>
@@ -361,7 +362,7 @@
   <!-- ===================== READER ===================== -->
   <section id="reader" class="screen">
     <div class="reader-top">
-      <button class="quit" onclick="quitReading()" title="Back to shelf">←</button>
+      <button class="quit" onclick="quitReading()" title="Back to shelf" aria-label="Back to shelf">←</button>
       <div class="read-title" id="readTitle"></div>
     </div>
 
@@ -391,7 +392,7 @@
   <!-- ===================== CALENDAR ===================== -->
   <section id="calendar" class="screen">
     <div class="mast">
-      <div class="brand" onclick="go('home')"><span class="seed"></span>Finish<em>It</em></div>
+      <button class="brand" onclick="go('home')" aria-label="Finish It — go to home"><span class="seed"></span>Finish<em>It</em></button>
       <button class="nav-link" onclick="go('home')">← Shelf</button>
     </div>
     <div class="cal-head" id="calTitle" tabindex="-1" data-focus></div>
@@ -401,7 +402,7 @@
   </section>
 
 </div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script>
 /* ============================================================
@@ -776,6 +777,9 @@ function answer(btn, choice, q) {
   const nudge = document.getElementById("nudge");
   if (correct) { nudge.textContent = "that's it."; nudge.className = "nudge show"; }
   else { btn.classList.add("wrong"); btn.querySelector(".mark")?.remove(); btn.innerHTML += '<span class="mark">✗</span>'; nudge.textContent = "not quite — now you'll remember it."; nudge.className = "nudge show miss"; }
+  const ann = document.getElementById('quizAnnounce');
+  if (correct) { ann.setAttribute('aria-live','polite'); ann.textContent = "that's it."; }
+  else { ann.setAttribute('aria-live','assertive'); ann.textContent = "not quite — now you'll remember it."; }
   document.getElementById("contBtn").style.display = "inline-block";
 }
 
@@ -883,7 +887,7 @@ function renderShelf() {
       <div class="ttl"><b>${escapeHtml(a.title)}</b><small>${escapeHtml(a.source)} · ${a.chunks.length} bites</small></div>
       ${a.done ? `<span class="done-badge">finished ✦</span>`
                : `<span class="mini-trail">${dots}</span>`}
-      <button class="row-del" title="Remove from shelf" onclick="deleteArticle('${a.id}', event)">×</button>`;
+      <button class="row-del" title="Remove from shelf" aria-label="Remove from shelf" onclick="deleteArticle('${a.id}', event)">×</button>`;
     el.appendChild(row);
   });
 }
@@ -924,5 +928,6 @@ document.getElementById("input").addEventListener("keydown", e => {
 
 renderShelf();
 </script>
+<div id="quizAnnounce" aria-live="polite" aria-atomic="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap"></div>
 </body>
 </html>
