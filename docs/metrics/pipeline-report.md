@@ -26,7 +26,7 @@ and turns-used vs `--max-turns` per stage.
 
 ---
 
-## Round 0 — Baseline · <run date> · commit <sha at run>
+## Round 0 — Baseline · 2026-06-25 · commit 0088a18 (+ PR #29 pending merge)
 
 **What's implemented today (prose):**
 The `/ship <cap>` front-half runs locally: `/research` writes a brief to
@@ -44,18 +44,46 @@ especially on large multi-file PRs (diagnosed 2026-06-25 — fix deferred to Rou
 event-driven fix-loop is built but lightly exercised end-to-end.
 
 **Protocol:** test set = `keyboard-shortcuts`, `performance`, `reading-progress` (locked;
-re-used every round). N=5: each cap once, then re-run the two cleanest client-side caps
-(closing the prior issue first, to exercise dedup/idempotency).
+re-used in later rounds). Planned N=5 (each cap once, then re-run two), but **stopped at N=2**:
+both runs failed the same way for the same reason, so the top failure mode was already
+unambiguous and the remaining runs (incl. the dedup re-runs) weren't worth the spend for Round 0.
+Treat the rate as N=2 — directional, not precise; re-runs resume in the round that tests a fix.
 
 | run | cap | issue→PR? | first-try green? | fix attempts | human edits? | review verdict | success? | notes |
 |-----|-----|-----------|------------------|--------------|--------------|----------------|----------|-------|
-|  1  | keyboard-shortcuts |     |        |        |        |        |        |       |
-|  2  | performance        |     |        |        |        |        |        |       |
-|  3  | reading-progress   |     |        |        |        |        |        |       |
-|  4  | keyboard-shortcuts (re-run) | |  |        |        |        |        |       |
-|  5  | performance (re-run)        | |  |        |        |        |        |       |
+|  1  | keyboard-shortcuts | ✅ #27 | ✅ | 0 | no (merge as-is) | ⚠️ negative | ❌ | merged as-is by human; **fails criterion on negative review** — gate green first-try but review caught a real Shift+Space scroll-hijack bug the gate missed. Reviewer ran fine (small single-file PR). |
+|  2  | performance        | ✅ #29 | ✅ | 0 | no (merge as-is) | ⚠️ negative | ❌ | merged as-is by human; **fails criterion on negative review** — gate green first-try; review negative for **infra not code** reasons: (1) acceptance check named "Playwright-assertable" but no test added [→ Chunk T/C2], (2) brief not committed to main so reviewer can't audit it [2/2 runs], (3) `crossorigin` double-fetch nit. Reviewer ran fine. |
 
-**Headline:** success rate _/5 · auto-fixer yield _% · first-try green _% ·
-mean fix attempts _ · human-edit rate _% · cost/merged-PR ~_ turns.
+**Headline (N=2):** success rate **0/2** · auto-fixer yield **100%** (2/2 issues → PR) ·
+first-try gate green **100%** (2/2, zero fix-loop attempts) · mean fix attempts **0** ·
+human-edit rate **0%** (both merged unchanged) · cost/merged-PR **~5–8 auto-fixer turns / $0.13–0.16**
+(plus the paid adversarial review, the dominant per-PR LLM cost — confirms why the free
+deterministic gate runs first).
 
-**Failure modes seen:** <which stage broke, how often>
+**Failure modes seen:**
+
+- **Negative adversarial review — 2/2 runs (the only failure stage).** Every other stage was
+  perfect: issues filed clean and PR-sized, auto-fixer opened a PR every time, the deterministic
+  gate passed first-try every time with zero fix-loop attempts, no human code edits needed. The
+  loop's *mechanics* are reliable; the **quality bar** is where it fails.
+- **Root cause — the deterministic gate is too shallow.** The Playwright smoke only walks the
+  happy path (paste→read→answer→finish→streak), so it never catches edge cases or enforces an
+  issue's acceptance checks. Everything real therefore lands on the LLM reviewer, whose negative
+  verdict then defines the success metric. Two faces of the same gap:
+  - *Run 1 (code):* review caught a genuine bug (`Shift+Space` scroll-hijack) the gate sailed past.
+  - *Run 2 (infra):* the auto-fixer wrote correct code, but the acceptance check it was told was
+    "Playwright-assertable" had no actual test, so the reviewer couldn't green-light it.
+- **Secondary, confirmed 2/2 — the research brief never reaches CI.** `/ship` writes
+  `docs/research/<cap>.md` locally and it's never committed to `main`, so the auto-fixer/reviewer
+  (which branch from `main`) can't read it; the reviewer downgrades and audits only the issue's
+  inline quotes. A small, well-scoped pipeline fix.
+- **Reviewer max-turns did NOT recur.** Both reviews completed cleanly — consistent with the
+  2026-06-25 diagnosis that `error_max_turns` is confined to large multi-file PRs, not the small
+  scoped PRs the pipeline normally produces. Supports keeping the Round 1 reviewer fix narrow.
+
+**→ What Round 1+ should target (in priority order):**
+1. **Chunk T / C2 — executable acceptance checks** (deepen the gate; make acceptance items real
+   Playwright assertions). Directly attacks the only failure stage. Highest leverage.
+2. **Commit the brief so CI can read it** (small fix; closes the 2/2 secondary finding).
+3. **The deferred reviewer max-turns fix** — still worth doing for large PRs, but the baseline
+   shows it is *not* what's capping the success rate.
