@@ -2,11 +2,22 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "finish-it",
   "compatibility_date": "2026-06-08",
+  "main": "worker.js",
   "observability": {
     "enabled": true
   },
   "assets": {
-    "directory": "."
+    "directory": ".",
+    // Static files win for every path EXCEPT /api/* — those fall through to
+    // worker.js (the /api/lesson route). AI mode is off by default, so until a
+    // user opts in and ANTHROPIC_API_KEY is set this route is never hit.
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    // Lesson model — see the note in worker.js before changing. Sonnet 4.6 is
+    // the quality/cost sweet spot; "claude-opus-4-8" for max quality. Do NOT
+    // set Haiku/Sonnet-4.5 here — the worker's `effort` field 400s on those.
+    "MODEL": "claude-sonnet-4-6"
   },
   "compatibility_flags": [
     "nodejs_compat"

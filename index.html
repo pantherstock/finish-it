@@ -96,6 +96,9 @@
   .paste textarea::placeholder { color: var(--ink-faint); }
   .paste-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 8px 8px; }
   .hint { font-size: 13px; color: var(--ink-faint); font-style: italic; }
+  .paste-meta { display: flex; align-items: center; gap: 12px; min-width: 0; flex-wrap: wrap; }
+  .ai-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--ink-soft); cursor: pointer; white-space: nowrap; user-select: none; }
+  .ai-toggle input { accent-color: var(--accent); cursor: pointer; margin: 0; }
   .btn {
     font-family: "Fraunces", serif; font-weight: 500; font-size: 16px;
     background: var(--ink); color: var(--paper); border: none; border-radius: 100px;
@@ -341,7 +344,12 @@
     <div class="paste">
       <textarea id="input" placeholder="Paste an article link… or just paste the text itself."></textarea>
       <div class="paste-bar">
-        <span class="hint" id="inputHint">Links work for most public articles. Paywalled? Paste the text.</span>
+        <div class="paste-meta">
+          <label class="ai-toggle" title="Use Claude to extract, chunk, and write recall questions. Needs the Worker + an API key; falls back to the built-in engine otherwise.">
+            <input type="checkbox" id="aiToggle" onchange="setAiMode(this.checked)"> ✨ AI mode
+          </label>
+          <span class="hint" id="inputHint">Links work for most public articles. Paywalled? Paste the text.</span>
+        </div>
         <button class="btn accent" id="startBtn" onclick="startFromInput()">Begin →</button>
       </div>
     </div>
@@ -450,7 +458,7 @@ const DB = {
   load() { try { return JSON.parse(localStorage.getItem("finishit") || "{}"); } catch (e) { obsLog(e.message, e.stack); return {}; } },
   save(d) { localStorage.setItem("finishit", JSON.stringify(d)); },
 };
-let state = Object.assign({ articles: [], days: {} }, DB.load());
+let state = Object.assign({ articles: [], days: {}, aiMode: false }, DB.load());
 function persist() { DB.save(state); }
 
 /* ---------- sample articles ---------- */
@@ -562,16 +570,51 @@ function buildQuestions(chunks) {
 
 function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
+/* ---------- the Claude-backed lesson (POST /api/lesson, see worker.js) ----------
+   Only fires when AI mode is on (default off). Returns null on anything that
+   isn't a usable lesson — no Worker deployed, no key, rate limit, bad shape —
+   and makeArticle() falls back to the deterministic chunker/question engine. */
+async function fetchLesson(title, text) {
+  if (!state.aiMode) return null;
+  try {
+    const res = await fetch("/api/lesson", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, text, target: WORDS_PER_CHUNK }),
+    });
+    if (!res.ok) return null;
+    const lesson = await res.json();
+    if (!lesson || !Array.isArray(lesson.chunks) || !lesson.chunks.length) return null;
+    return lesson;
+  } catch (e) { obsLog(e.message, e.stack); return null; }
+}
+
 /* ---------- article creation ---------- */
-function makeArticle(title, source, text) {
-  const chunks = chunkText(text);
-  const summary = (splitSentences(text)[0] || text).trim().replace(/\s+/g, " ").slice(0, 200);
+async function makeArticle(title, source, text) {
+  const lesson = await fetchLesson(title, text);
+  let chunks, questions, summary;
+  if (lesson) {
+    // Adapt the lesson shape to the app's chunks[]/questions[]: answer_index → the option text.
+    chunks = lesson.chunks.map(c => c.text);
+    questions = lesson.chunks.map(c => {
+      const q = c.question;
+      if (!q || !Array.isArray(q.options) || typeof q.answer_index !== "number") return null;
+      const answer = q.options[q.answer_index];
+      return answer ? { prompt: q.prompt, options: q.options, answer } : null;
+    });
+    summary = (lesson.summary || "").trim().slice(0, 200);
+  }
+  if (!lesson || !chunks.length) {
+    chunks = chunkText(text);
+    questions = buildQuestions(chunks);
+  }
+  if (!summary) summary = (splitSentences(text)[0] || text).trim().replace(/\s+/g, " ").slice(0, 200);
   const art = {
     id: "a" + Date.now(),
     title: title || "Untitled reading",
     source: source || "pasted",
     chunks,
-    questions: buildQuestions(chunks),
+    questions,
     progress: 0,
     done: false,
     summary,
@@ -605,9 +648,12 @@ async function startFromInput() {
     const firstLine = raw.split("\n").map(s => s.trim()).find(Boolean) || "";
     const title = firstLine.length <= 80 ? firstLine : "Pasted reading";
     const body = title === firstLine ? raw.slice(raw.indexOf(firstLine) + firstLine.length).trim() || raw : raw;
-    const art = makeArticle(title, "pasted", body);
-    document.getElementById("input").value = "";
-    openArticle(art);
+    btn.disabled = true; btn.textContent = state.aiMode ? "Preparing…" : "Begin →";
+    try {
+      const art = await makeArticle(title, "pasted", body);
+      document.getElementById("input").value = "";
+      openArticle(art);
+    } finally { btn.disabled = false; btn.textContent = "Begin →"; }
   }
 }
 
@@ -622,7 +668,7 @@ async function fetchArticle(url) {
   if (marker !== -1) body = md.slice(marker + "Markdown Content:".length);
   body = cleanMarkdown(body);
   if (wordCount(body) < 60) throw new Error("too short");
-  return makeArticle(title.trim(), hostOf(url), body);
+  return await makeArticle(title.trim(), hostOf(url), body);
 }
 
 const BOILER = /^(table of contents|contents|in this article|share( this)?|subscribe|sign in|sign up|log ?in|menu|newsletter|advertisement|advert|sponsored|related( articles| posts| reading)?|read (more|next)|recommended|more from|follow us|comments?|leave a comment|cookies?|accept all|privacy policy|terms of|copyright|all rights reserved|skip to (content|main)|search|tags?:|categories?:|posted (on|in)|published|updated|by [a-z.]+ ?[a-z.]*$|\d+ min read|photo(graph)?( by| credit)|image:|getty|reuters)/i;
@@ -654,11 +700,12 @@ function cleanMarkdown(md) {
 }
 function hostOf(url) { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return "link"; } }
 
-function startSample(i) {
+async function startSample(i) {
   _lastAction = 'startSample';
   const s = SAMPLES[i];
   const existing = state.articles.find(a => a.title === s.title && !a.done);
-  const art = existing || makeArticle(s.title, s.source, s.text);
+  if (!existing && state.aiMode) toast("Preparing your reading…");
+  const art = existing || await makeArticle(s.title, s.source, s.text);
   openArticle(art);
 }
 
@@ -921,6 +968,14 @@ function toast(msg) {
 document.getElementById("input").addEventListener("keydown", e => {
   if ((e.metaKey || e.ctrlKey) && e.key === "Enter") startFromInput();
 });
+
+// AI mode — opt-in, persisted, off by default.
+function setAiMode(on) {
+  state.aiMode = !!on;
+  persist();
+  toast(on ? "AI mode on — readings use Claude when the Worker's available" : "AI mode off");
+}
+document.getElementById("aiToggle").checked = state.aiMode;
 
 renderShelf();
 </script>

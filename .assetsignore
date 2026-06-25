@@ -1,0 +1,14 @@
+worker.js
+wrangler.jsonc
+.assetsignore
+node_modules
+package.json
+package-lock.json
+tests
+playwright.config.js
+.github
+plan
+docs
+*.md
+.gitmessage
+.htmlvalidate.json
