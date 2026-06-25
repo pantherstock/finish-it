@@ -782,6 +782,7 @@ function renderReader() {
     <div class="advance">
       <button class="btn ghost" onclick="prevChunk()" ${i === 0 ? "disabled" : ""}>← Back</button>
       ${fwd}
+      <small class="hint" style="color:var(--ink-faint);font-size:.75rem;margin-left:.5rem">use ← → to move</small>
     </div>`;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -967,6 +968,26 @@ function toast(msg) {
 // allow Ctrl/Cmd+Enter to begin
 document.getElementById("input").addEventListener("keydown", e => {
   if ((e.metaKey || e.ctrlKey) && e.key === "Enter") startFromInput();
+});
+
+// keyboard navigation in the reader: ←/→ (and Space) to move between bites
+document.addEventListener("keydown", e => {
+  if (_screen !== "reader") return;
+  if (/^(INPUT|TEXTAREA)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === "ArrowRight" || e.key === " ") {
+    const cont = document.getElementById("contBtn");
+    if (cont && cont.style.display !== "none") {
+      e.preventDefault();
+      cont.click();
+    } else {
+      const fwdBtn = document.querySelector("#reader .advance .btn:not(.ghost)");
+      if (fwdBtn) { e.preventDefault(); fwdBtn.click(); }
+    }
+  } else if (e.key === "ArrowLeft") {
+    const back = document.querySelector("#reader .advance .btn.ghost");
+    if (back && !back.disabled) { e.preventDefault(); back.click(); }
+  }
 });
 
 // AI mode — opt-in, persisted, off by default.
