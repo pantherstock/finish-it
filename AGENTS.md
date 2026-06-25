@@ -63,6 +63,26 @@ docs: add observability research brief
 4. Open a PR using the template; end the body with `Closes #N` so merging closes the
    issue. A human reviews and merges — **never auto-merge to the live site.**
 
+## Test convention (the deterministic gate)
+
+The quality gate runs every `*.spec.js` in `tests/` (Playwright) plus html-validate —
+free and deterministic, and it runs *before* any paid LLM review. Keep that gate the
+primary correctness signal, not the reviewer:
+
+- **One acceptance check → one assertion.** Every `agent-found` issue states an acceptance
+  check; express it as a Playwright assertion in `tests/`, not just prose. A check you
+  can't assert is a check you can't gate — tighten the issue until you can.
+- **Tests live in `tests/`; no workflow change needed.** `npx playwright test` auto-discovers
+  spec files. Add core-loop flows to `tests/smoke.spec.js`; group a larger area as
+  `tests/<area>.spec.js`.
+- **Cover the edge, not just the happy path.** The historically fragile surfaces are
+  extraction (`cleanMarkdown`), async fetch (`r.jina.ai`), and `finishit` localStorage
+  recovery. Prefer a deterministic test there over trusting the adversarial reviewer to
+  catch it — route-mock the network (`page.route('**r.jina.ai/**', …)`) and seed storage
+  before boot (`page.addInitScript`).
+- **No live network in tests.** Sample articles and pasted text already run the offline
+  path; mock `r.jina.ai` rather than hitting it, so the gate stays deterministic.
+
 ## The automation loop (how this repo maintains itself)
 
 A **capability** is a named functional area of the app — `observability`, `accessibility`,
