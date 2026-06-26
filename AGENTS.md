@@ -87,7 +87,7 @@ primary correctness signal, not the reviewer:
 
 A **capability** is a named functional area of the app — `observability`, `accessibility`,
 `offline`, etc. Running `/ship <cap>` pushes a capability through a four-stage pipeline.
-**Stages 1–2 run locally in your Claude Code terminal. Stages 3–4 run in GitHub Actions CI.**
+**Stages 1–2 run locally in your agent terminal (Claude Code or Copilot CLI). Stages 3–4 run in GitHub Actions CI.**
 
 ```
 [local]  Stage 1 — /research <cap>    →  docs/research/<cap>.md
@@ -110,19 +110,25 @@ A **capability** is a named functional area of the app — `observability`, `acc
 ```
 
 **`/ship <cap>`** is a shortcut that runs stages 1 and 2 in one command.
-Each local command is a skill file in `.claude/commands/`.
+
+Each skill is one harness-agnostic body in **`skills/<name>.md`** (the single source of truth),
+wired into each harness by a thin stub: Claude Code `.claude/commands/<name>.md`, Copilot CLI
+`.agents/skills/<name>/SKILL.md`. Edit behaviour in `skills/`, not the stubs.
 
 **Alternative entry point:** `/qa-tester [persona]` drives the live app via Playwright MCP
 and files `agent-found` issues directly, bypassing stages 1–2.
 
-### CI workflows
+### The machine-readable map
 
-| Workflow | Trigger | Job |
-|----------|---------|-----|
-| `auto-fixer.yml` | issue labeled `agent-found` | Fix + open PR (max 15 turns) |
-| `quality-gate.yml` | PR touches `index.html` | html-validate + Playwright smoke; pings Discord on pass |
-| `fix-loop.yml` | `quality-gate.yml` completes with failure | Re-patch `index.html`; caps at 3 tries, then hands off to human |
-| `review.yml` | PR touches `index.html` | Adversarial critique against research brief; **advisory only** |
+**`pipeline.json`** is the source of truth for *how the stages wire together* — each stage's
+`type`, `trigger`, the file that implements it, inputs/outputs, model, `maxTurns`, caps, and how
+to invoke it standalone (for re-runs or intermediate interjection). It holds pointers + metadata
+only; the logic stays in the referenced `skills/*.md` and `.github/workflows/*.yml`. Run
+`node scripts/validate-pipeline.js` to confirm nothing has drifted (every referenced path exists).
+
+The CI workflows it maps: `auto-fixer.yml` (agent-found issue → PR), `quality-gate.yml`
+(html-validate + Playwright smoke, pings Discord on pass), `fix-loop.yml` (re-patches on gate
+failure, ≤3 tries), `review.yml` (advisory adversarial critique).
 
 ### Design decisions worth knowing
 

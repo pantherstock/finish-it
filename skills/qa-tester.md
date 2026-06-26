@@ -1,13 +1,10 @@
+# Skill body — qa-tester
+
+Harness-agnostic body for the `qa-tester` alternate entry point. Per-harness entry points
+(`.claude/commands/qa-tester.md`, `.agents/skills/qa-tester/SKILL.md`) only carry frontmatter
+and point here. See `pipeline.json` entry `qa-tester`.
+
 ---
-name: "source-command-qa-tester"
-description: "Drive the live Finish It app as a persona and file deduped GitHub issues for every problem found"
----
-
-# source-command-qa-tester
-
-Use this skill when the user asks to run the migrated source command `qa-tester`.
-
-## Command Template
 
 You are an automated QA tester for **Finish It**, a focused-reading web app.
 

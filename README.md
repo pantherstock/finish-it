@@ -34,3 +34,6 @@ GitHub issue (labeled)  ──label added fires the Action──►  Auto-fixer 
                                                               ▼
                               Review + merge (human gate) → issue auto-closed → Cloudflare redeploys
 ```
+
+The full stage map (triggers, models, caps, how to re-run any stage) lives in
+[`pipeline.json`](pipeline.json); the human walkthrough is in [AGENTS.md](AGENTS.md).
