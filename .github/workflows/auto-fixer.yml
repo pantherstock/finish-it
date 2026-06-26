@@ -1,7 +1,7 @@
-# Phase 3 — Auto-fixer
-# An issue labeled `agent-found` (filed by the /qa-tester tester) becomes a PR
-# with a fix, opened by Claude running here in CI. You review + merge; Cloudflare
-# redeploys. See plan/automation-learning-plan.md.
+# Auto-fixer — pipeline.json stage `auto-fix`.
+# An agent-found issue becomes a fix PR opened by Claude in CI. Human reviews + merges;
+# Cloudflare redeploys. Two gotchas that each cost a run are guarded below: OIDC
+# (`id-token: write`) and the agent-mode Bash allowlist (else green-but-does-nothing).
 
 name: Auto-fixer
 

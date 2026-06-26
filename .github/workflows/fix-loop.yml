@@ -1,12 +1,8 @@
-# Fix Loop — event-driven quality-gate retry
-#
-# Fires when the Quality Gate workflow completes with a failure on an
-# agent-found PR. Reads the failing log, patches index.html, and pushes.
-# Attempt count is tracked via fix-attempt-N PR labels (visible in UI,
-# easy to reset manually). Caps at 3 attempts then hands off to a human.
-#
-# workflow_run always executes in the default-branch context — the checkout
-# step below explicitly uses head_branch so we edit the PR branch, not main.
+# Fix Loop — pipeline.json stage `fix-loop`.
+# Fires when Quality Gate completes with failure on an agent-found PR: reads the failing
+# log, patches index.html, pushes. Caps at 3 attempts (fix-attempt-N labels) then hands to
+# a human. GOTCHA: workflow_run always runs in the default-branch context, so the checkout
+# below explicitly uses head_branch to edit the PR branch, not main.
 
 name: Fix Loop
 

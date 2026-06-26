@@ -1,9 +1,7 @@
-# Chunks 4 + 6 — Quality Gate + PR-ready notification
-# Runs on every PR that touches index.html.
-# Two independent jobs: structural HTML validation (free, fast) and a
-# Playwright smoke of the core reading loop (deterministic, no LLM).
-# A third job fires only when both pass — it pings Discord so the human
-# knows the PR is ready to review.
+# Quality Gate — pipeline.json stage `quality-gate`.
+# Runs on every PR touching index.html or tests/**. Two deterministic jobs (no LLM): html-validate
+# and a Playwright run of the core-loop smoke + each issue's acceptance test. A third job pings
+# Discord only when both pass.
 
 name: Quality Gate
 
