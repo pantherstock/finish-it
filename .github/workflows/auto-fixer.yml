@@ -63,25 +63,33 @@ jobs:
                offset+limit targeting the line numbers in Implementation notes.
                Never read index.html in full.
 
-            2. **Make ALL edits before touching git.** Complete every Edit call
+            2. **Write the acceptance test verbatim.** The issue body has an
+               "## Acceptance test (Playwright)" section with a target filename and a
+               fenced code block. Write that file to the given path under tests/ EXACTLY
+               as written — do not edit, weaken, or "improve" the test. It is the
+               objective gate for this fix; your job is to make index.html satisfy it.
+
+            3. **Make ALL edits before touching git.** Complete every Edit call
                first. Do not git-diff, git-status, or re-read the file between edits.
 
-            3. **Batch branch + commit + push into one shell call:**
+            4. **Batch branch + commit + push into one shell call** (stage the fix AND
+               the test so the gate runs it):
                git checkout -b fix/issue-${{ github.event.issue.number }} && \
-               git add index.html && \
+               git add index.html tests/ && \
                git commit -m "fix: ${{ github.event.issue.title }}" && \
                git push -u origin fix/issue-${{ github.event.issue.number }}
 
-            4. **Open the PR** with gh pr create. List each acceptance-check item
+            5. **Open the PR** with gh pr create. List each acceptance-check item
                in the body and end with "Closes #${{ github.event.issue.number }}".
 
-            5. **Stop immediately.** Do not verify CI, check PR state, or re-read anything.
+            6. **Stop immediately.** Do not verify CI, check PR state, or re-read anything.
 
-            If the issue is unclear or contradictory, post one comment explaining why,
-            then stop without making any edits.
+            If the issue is unclear or contradictory, or has no "## Acceptance test"
+            block, post one comment explaining why, then stop without making any edits.
 
-          # 25 turns covers: targeted reads (≤3) + edits (up to ~10 for complex issues)
-          # + one batched git call + gh pr create. fix-loop.yml handles CI retries.
+          # 25 turns covers: targeted reads (≤3) + writing the acceptance test verbatim
+          # + edits (up to ~10 for complex issues) + one batched git call + gh pr create.
+          # fix-loop.yml handles CI retries.
           claude_args: |
             --model sonnet
             --max-turns 25

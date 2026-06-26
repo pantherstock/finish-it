@@ -87,3 +87,33 @@ deterministic gate runs first).
 2. **Commit the brief so CI can read it** (small fix; closes the 2/2 secondary finding).
 3. **The deferred reviewer max-turns fix** — still worth doing for large PRs, but the baseline
    shows it is *not* what's capping the success rate.
+
+---
+
+## Round 1 — Chunk C2 landed (executable acceptance checks) · 2026-06-26 · PR #45
+
+**What changed:** `/scope-gaps` now emits each acceptance check as a Playwright assertion in the
+issue body; `auto-fixer.yml` writes that test **verbatim** onto its branch and must make
+`index.html` satisfy it; `quality-gate.yml` also triggers on `tests/**`. The reviewer's old
+*comment* about an unmet acceptance check becomes an objective gate red/green that `fix-loop.yml`
+converges — no same-model-reviews-its-own-fix loop (the C1 trap C2 was chosen over). Files:
+`.claude/commands/scope-gaps.md`, `.github/workflows/auto-fixer.yml`,
+`.github/workflows/quality-gate.yml`, `AGENTS.md`.
+
+**Design choice:** the emitted test rides the **fix branch** (issue body → auto-fixer), not
+`main`, so a not-yet-implemented assertion can't poison other concurrent PRs' gates.
+
+**Pre-merge validation (local, deterministic — no CI spend):** installed Playwright as CI does,
+served `index.html`, and ran the suite.
+- Baseline smoke suite: **5/5 pass** (unchanged — C2 touches no `index.html`/`tests/`).
+- C2 mechanics demo — dropped in a throwaway emitted-style spec (since deleted): the gate
+  **auto-discovered it with no `playwright.config` change**, passed the assertion for an existing
+  behavior, and **failed the assertion for a not-yet-built feature** (a text-size control), exiting
+  non-zero — exactly the red that triggers `fix-loop.yml`. Confirms the C2 path enforces an
+  acceptance check end-to-end (gate discovery + red/green) ahead of the live round.
+
+**Not yet measured:** the full Round-1 success-rate row is intentionally pending. It requires C2
+**on `main`** (both `/scope-gaps` and the auto-fixer branch from `main`), so it will be taken from
+the first real post-merge `/ship` on the locked test set (`keyboard-shortcuts`, `performance`,
+`reading-progress`), resuming the N count. Expected movers vs. Round 0: review verdict → pass,
+first-try gate pass rate, human-edit rate, and end-to-end success rate.
