@@ -1,7 +1,6 @@
-# Chunk 5 — Adversarial Reviewer
-# Runs on every PR that touches index.html. Reads the research brief referenced
-# in the linked issue and critiques the implementation against it.
-# Advisory only — it posts a comment but does not block merge.
+# Adversarial Reviewer — pipeline.json stage `review`.
+# Runs on every PR touching index.html. Critiques the implementation against the linked
+# issue's acceptance checks + research brief. Advisory only — posts a comment, never blocks.
 
 name: Adversarial Reviewer
 

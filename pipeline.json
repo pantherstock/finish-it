@@ -1,0 +1,146 @@
+{
+  "$comment": "Machine-readable MAP of the Finish It capability pipeline. This file holds POINTERS + orchestration metadata only — the real logic lives in the referenced skill bodies (skills/*.md) and workflows (.github/workflows/*.yml). It must never duplicate that logic. Edit a stage's behaviour in its `implementedBy` file; edit only wiring/metadata here. See AGENTS.md for the human narrative.",
+  "name": "Finish It — Capability Pipeline",
+  "description": "Autonomous QA/capability loop with GitHub as the orchestrator and a human merge gate. A capability (or a qa-tester finding) becomes a scoped issue, an auto-fixer PR, a deterministic gate, an advisory review, a bounded fix-loop, then a human merge that triggers Cloudflare redeploy.",
+  "conventions": {
+    "skillBody": "Harness-agnostic body under skills/. Invoked identically by every harness via a thin stub.",
+    "harnessEntries": "Thin per-harness stubs that only carry frontmatter and point at the skill body. Claude Code: .claude/commands/<name>.md · Copilot CLI: .agents/skills/<name>/SKILL.md · other agents resolve via AGENTS.md.",
+    "labels": {
+      "agent-found": "Routes an issue to auto-fixer.yml. ONLY for index.html-shaped app issues.",
+      "capability:<cap>": "Auto-created by scope/ship; tags the capability area.",
+      "fix-attempt-N": "Counts fix-loop retries on a PR (cap 3)."
+    },
+    "guardrails": {
+      "ordering": "Deterministic gate (free) runs before any paid LLM review.",
+      "humanGate": "Never auto-merge to the live site; notifications end at the human.",
+      "iterationCaps": "Live in YAML, never in a prompt (fix-loop = 3).",
+      "scope": "Agents stay inside index.html / tests/ (or the issue's scope); never touch plan/.",
+      "cost": "sonnet default; --max-turns on every CI agent; spend cap in the Anthropic Console."
+    }
+  },
+  "entrypoints": {
+    "ship": "Run research + scope in one prompt (skills/ship.md).",
+    "research+scope": "Run the two skills individually.",
+    "qa-tester": "Bypass research+scope; drive the live app and file agent-found issues directly.",
+    "issueLabel": "Apply the agent-found label to any issue to enter at the auto-fix stage.",
+    "workflowDispatch": "(planned, Chunk A1) re-run auto-fixer against an issue number from the Actions UI."
+  },
+  "stages": [
+    {
+      "id": "research",
+      "type": "skill",
+      "order": 1,
+      "runsOn": "local",
+      "trigger": "manual: /ship <cap> or /research <cap>",
+      "implementedBy": "skills/research.md",
+      "harnessEntries": [".claude/commands/research.md", ".agents/skills/research/SKILL.md"],
+      "inputs": ["capability name"],
+      "outputs": ["docs/research/<cap>.md", "Discord ping (3 bullets)"],
+      "invoke": "/research <cap>  (or as Phase 1 of /ship)",
+      "next": ["scope"]
+    },
+    {
+      "id": "scope",
+      "type": "skill",
+      "order": 2,
+      "runsOn": "local",
+      "trigger": "manual: /ship <cap> or /scope-gaps <cap>",
+      "implementedBy": "skills/scope-gaps.md",
+      "harnessEntries": [".claude/commands/scope-gaps.md", ".agents/skills/scope-gaps/SKILL.md"],
+      "inputs": ["docs/research/<cap>.md", "index.html"],
+      "outputs": ["exactly one deduped issue: labels agent-found + capability:<cap> + enhancement"],
+      "invoke": "/scope-gaps <cap>  (or as Phase 2 of /ship)",
+      "next": ["auto-fix"]
+    },
+    {
+      "id": "auto-fix",
+      "type": "ci",
+      "order": 3,
+      "runsOn": "github-actions",
+      "trigger": "issues: labeled == agent-found",
+      "implementedBy": ".github/workflows/auto-fixer.yml",
+      "model": "sonnet",
+      "maxTurns": 25,
+      "inputs": ["the agent-found issue (title + body)"],
+      "outputs": ["branch fix/issue-<N>", "pull request closing the issue"],
+      "invoke": "remove + re-add the agent-found label (labeled only fires on add); planned: workflow_dispatch (Chunk A1)",
+      "next": ["quality-gate", "review"]
+    },
+    {
+      "id": "quality-gate",
+      "type": "gate",
+      "order": 4,
+      "runsOn": "github-actions",
+      "blocking": true,
+      "trigger": "pull_request, paths: [index.html]",
+      "implementedBy": ".github/workflows/quality-gate.yml",
+      "checks": ["html-validate index.html", "Playwright smoke of the core loop (tests/*.spec.js)"],
+      "inputs": ["the PR's index.html + tests/"],
+      "outputs": ["pass/fail status", "Discord ping on pass (PR ready)"],
+      "invoke": "re-run the workflow from the PR's Checks tab",
+      "onPass": ["review", "merge"],
+      "onFail": ["fix-loop"]
+    },
+    {
+      "id": "fix-loop",
+      "type": "ci",
+      "order": 5,
+      "runsOn": "github-actions",
+      "trigger": "workflow_run: Quality Gate completed with conclusion == failure",
+      "implementedBy": ".github/workflows/fix-loop.yml",
+      "model": "sonnet",
+      "maxTurns": 20,
+      "cap": "3 attempts (tracked by fix-attempt-N labels), then hands off to a human",
+      "inputs": ["the failing gate log", "the PR branch"],
+      "outputs": ["a fix commit pushed to the PR branch (re-triggers the gate)"],
+      "invoke": "automatic on gate failure; reset by removing fix-attempt-N labels",
+      "next": ["quality-gate"]
+    },
+    {
+      "id": "review",
+      "type": "review",
+      "order": 6,
+      "runsOn": "github-actions",
+      "blocking": false,
+      "advisory": true,
+      "trigger": "pull_request, paths: [index.html]",
+      "implementedBy": ".github/workflows/review.yml",
+      "model": "sonnet",
+      "maxTurns": 15,
+      "inputs": ["PR diff", "linked issue acceptance checks", "docs/research/<cap>.md if referenced"],
+      "outputs": ["a single advisory PR comment (## Adversarial Review)"],
+      "invoke": "re-run the workflow from the PR's Checks tab",
+      "next": ["merge"]
+    },
+    {
+      "id": "merge",
+      "type": "human",
+      "order": 7,
+      "runsOn": "human",
+      "trigger": "human review of a green, reviewed PR",
+      "implementedBy": ".github/PULL_REQUEST_TEMPLATE.md",
+      "inputs": ["the PR"],
+      "outputs": ["merge to main → issue auto-closed → Cloudflare redeploys the live site"],
+      "invoke": "review + Merge (the gate that never auto-fires)",
+      "next": []
+    }
+  ],
+  "alternateEntries": [
+    {
+      "id": "qa-tester",
+      "type": "skill",
+      "runsOn": "local",
+      "trigger": "manual: /qa-tester [persona]",
+      "implementedBy": "skills/qa-tester.md",
+      "harnessEntries": [".claude/commands/qa-tester.md", ".agents/skills/qa-tester/SKILL.md"],
+      "inputs": ["persona", "the live app (Playwright MCP)"],
+      "outputs": ["deduped agent-found issues (bug | enhancement)"],
+      "invoke": "/qa-tester [persona]",
+      "next": ["auto-fix"]
+    }
+  ],
+  "observability": {
+    "metricsReport": "docs/metrics/pipeline-report.md",
+    "canarySignals": ["permission_denials_count (green-but-did-nothing)", "turns-used vs --max-turns"]
+  }
+}
