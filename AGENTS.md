@@ -93,12 +93,14 @@ A **capability** is a named functional area of the app — `observability`, `acc
 [local]  Stage 1 — /research <cap>    →  docs/research/<cap>.md
                                           (best practices, APIs, what to avoid)
 
-[local]  Stage 2 — /scope-gaps <cap>  →  GitHub issue
+[local]  Stage 2 — /scope-gaps <cap>  →  GitHub issue (+ an executable
+                                          acceptance test in the body)
                                           labels: agent-found + capability:<cap>
                                                        │
                                            label added fires CI ▼
 
-[CI]     Stage 3 — auto-fixer.yml     →  branch + edits index.html + opens PR
+[CI]     Stage 3 — auto-fixer.yml     →  branch + writes the acceptance test
+                                          verbatim + edits index.html + opens PR
 
 [CI]     Stage 4 — quality-gate.yml   →  html-validate + Playwright smoke → Discord on pass
                    fix-loop.yml       →  re-patches index.html if gate fails (≤ 3 tries)
@@ -119,8 +121,8 @@ and files `agent-found` issues directly, bypassing stages 1–2.
 
 | Workflow | Trigger | Job |
 |----------|---------|-----|
-| `auto-fixer.yml` | issue labeled `agent-found` | Fix + open PR (max 15 turns) |
-| `quality-gate.yml` | PR touches `index.html` | html-validate + Playwright smoke; pings Discord on pass |
+| `auto-fixer.yml` | issue labeled `agent-found` | Write the issue's acceptance test verbatim + fix `index.html` + open PR (max 25 turns) |
+| `quality-gate.yml` | PR touches `index.html` or `tests/**` | html-validate + Playwright smoke + the issue's acceptance test; pings Discord on pass |
 | `fix-loop.yml` | `quality-gate.yml` completes with failure | Re-patch `index.html`; caps at 3 tries, then hands off to human |
 | `review.yml` | PR touches `index.html` | Adversarial critique against research brief; **advisory only** |
 
@@ -131,6 +133,12 @@ and files `agent-found` issues directly, bypassing stages 1–2.
   auto-fix loops (the same model reviewing its own fix).
 - **`capability:X` labels are auto-created** by `/scope-gaps` and `/ship` with
   `gh label create --force` before filing the issue.
+- **Acceptance checks are executable (C2).** `/scope-gaps` emits each acceptance check as a
+  Playwright assertion in the issue body; the auto-fixer writes it verbatim onto its branch
+  (it does *not* go on `main`, so it can't poison other PRs' gates) and must make `index.html`
+  satisfy it. The deterministic gate then enforces the spec and `fix-loop.yml` converges any
+  miss — turning the reviewer's old "comment" into an objective red/green with no
+  same-model-reviews-its-own-fix loop.
 
 ## Gotchas worth knowing
 
