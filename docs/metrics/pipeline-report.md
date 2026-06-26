@@ -19,10 +19,11 @@ The six headline metrics (see `plan/pipeline-upgrades-session.md` Part 0):
 | First-try gate pass rate | % of PRs green with zero fix-loop attempts | `fix-attempt-N` labels absent |
 | Fix-loop attempts to green | mean attempts (0–3) the loop needed | count `fix-attempt-N` labels |
 | Human-edit rate | % of merged PRs that needed manual code changes | recorded by hand |
-| Cost per merged PR | total turns (or tokens) ÷ merged PRs | claude-code-action run logs |
+| Cost per merged PR | total work (turns/tokens) ÷ merged PRs | Copilot cloud-agent session logs |
 
-Canary signals to note alongside: `permission_denials_count` (the green-but-nothing canary)
-and turns-used vs `--max-turns` per stage.
+Canary signals to note alongside: a missing/expired `COPILOT_AGENT_PAT` or Copilot-not-enabled
+(the green-but-nothing canary — the assignment API silently rejects the default `GITHUB_TOKEN`)
+and Copilot task state (`failed` / `timed_out` / `cancelled`).
 
 ---
 
@@ -117,3 +118,45 @@ served `index.html`, and ran the suite.
 the first real post-merge `/ship` on the locked test set (`keyboard-shortcuts`, `performance`,
 `reading-progress`), resuming the N count. Expected movers vs. Round 0: review verdict → pass,
 first-try gate pass rate, human-edit rate, and end-to-end success rate.
+
+---
+
+## Round 1 (infra) — Pipeline migrated Claude → Copilot · 2026-06-26 · PR #57 capability
+
+**Trigger (the canary fired for real).** Issue #57 (`reading-progress`, the first post-C2 `/ship`)
+got its `agent-found` label and fired `auto-fixer.yml` — which completed in **16s as "success"
+while doing nothing**: no branch, no PR. The classic green-but-did-nothing canary. The
+`claude-code-action` errored on turn 1 (`is_error: true, num_turns: 1, total_cost_usd: 0,
+duration_ms: 163`) — an instant auth rejection. Same workflow had worked on 2026-06-25 and died
+instantly on 06-26.
+
+**Root cause.** The maintainer's **Claude Pro subscription expired**, invalidating the
+`CLAUDE_CODE_OAUTH_TOKEN` the three agent workflows authenticated with. The API rejects turn 1
+instantly, but `claude-code-action` exits 0, so the workflow shows green while accomplishing
+nothing. Blast radius: `auto-fixer.yml`, `fix-loop.yml`, `review.yml` (all three used the OAuth
+token); `quality-gate.yml` is pure Playwright and was unaffected.
+
+**Fix.** Migrated the three agent stages off `claude-code-action` onto the **GitHub Copilot cloud
+agent**:
+- `auto-fixer.yml` — assigns the `agent-found` issue to `copilot-swe-agent` (GraphQL
+  `replaceActorsForAssignable`); Copilot reads the issue body (incl. the C2 acceptance test
+  verbatim), fixes `index.html`, and opens the PR.
+- `fix-loop.yml` — on gate failure, posts an `@copilot` PR comment with the failing log tail
+  (≤3-attempt cap unchanged).
+- `review.yml` — requests advisory Copilot code review (best-effort).
+- New `copilot-setup-steps.yml` preinstalls the gate toolchain so Copilot can self-verify;
+  `.github/copilot-instructions.md` carries the repo-wide contract.
+
+**Why this validates C2's design.** The acceptance test + fix instructions live in the **issue
+body**, not the harness, so swapping the engine needed **zero** change to `/scope-gaps` and **zero**
+change to any issue. The contract is agent-agnostic — exactly the property C2 was built for.
+
+**New auth dependency / canary.** The Copilot agent needs a **user** token: the default
+`GITHUB_TOKEN` (server-to-server) can't assign Copilot or wake it via `@copilot`. The repo now
+requires the `COPILOT_AGENT_PAT` secret (fine-grained PAT, Copilot-seat owner). If it's
+missing/expired or Copilot isn't enabled, the workflow **hard-errors** instead of passing silently —
+the green-but-did-nothing failure mode that hid the Claude outage is now a loud red.
+
+**Not yet measured (live).** Re-running `/ship` on the locked test set to confirm Copilot gets
+assigned, opens a PR, and clears the gate is pending the `COPILOT_AGENT_PAT` secret + merge of the
+migration PR. The Round-1 success-rate row will be taken from that first clean post-migration run.

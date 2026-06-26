@@ -15,7 +15,7 @@
       "humanGate": "Never auto-merge to the live site; notifications end at the human.",
       "iterationCaps": "Live in YAML, never in a prompt (fix-loop = 3).",
       "scope": "Agents stay inside index.html / tests/ (or the issue's scope); never touch plan/.",
-      "cost": "sonnet default; --max-turns on every CI agent; spend cap in the Anthropic Console."
+      "cost": "CI agent stages run on the GitHub Copilot cloud agent (Copilot subscription quota), not metered API billing; Copilot manages its own turn budget."
     }
   },
   "entrypoints": {
@@ -59,11 +59,13 @@
       "runsOn": "github-actions",
       "trigger": "issues: labeled == agent-found",
       "implementedBy": ".github/workflows/auto-fixer.yml",
-      "model": "sonnet",
-      "maxTurns": 25,
+      "agent": "github-copilot-cloud-agent (copilot-swe-agent)",
+      "auth": "COPILOT_AGENT_PAT (user PAT — the default GITHUB_TOKEN cannot assign Copilot)",
+      "mechanism": "assigns the issue to Copilot via GraphQL replaceActorsForAssignable; Copilot works in its own ephemeral env and opens the PR",
+      "envConfig": [".github/copilot-instructions.md", ".github/workflows/copilot-setup-steps.yml"],
       "inputs": ["the agent-found issue (title + body, incl. the '## Acceptance test' block)"],
-      "outputs": ["branch fix/issue-<N> (acceptance test written verbatim + index.html fix)", "pull request closing the issue"],
-      "invoke": "remove + re-add the agent-found label (labeled only fires on add); planned: workflow_dispatch (Chunk A1)",
+      "outputs": ["a Copilot branch (acceptance test written verbatim + index.html fix)", "pull request closing the issue"],
+      "invoke": "remove + re-add the agent-found label (labeled only fires on add); or assign Copilot to the issue directly",
       "next": ["quality-gate", "review"]
     },
     {
@@ -88,11 +90,12 @@
       "runsOn": "github-actions",
       "trigger": "workflow_run: Quality Gate completed with conclusion == failure",
       "implementedBy": ".github/workflows/fix-loop.yml",
-      "model": "sonnet",
-      "maxTurns": 20,
+      "agent": "github-copilot-cloud-agent (re-engaged on the PR)",
+      "auth": "COPILOT_AGENT_PAT (the @copilot mention must come from a user with write access)",
+      "mechanism": "posts an @copilot PR comment with the failing log tail; Copilot pushes a fix to the PR branch",
       "cap": "3 attempts (tracked by fix-attempt-N labels), then hands off to a human",
-      "inputs": ["the failing gate log", "the PR branch"],
-      "outputs": ["a fix commit pushed to the PR branch (re-triggers the gate)"],
+      "inputs": ["the failing gate log", "the PR"],
+      "outputs": ["a Copilot fix commit pushed to the PR branch (re-triggers the gate)"],
       "invoke": "automatic on gate failure; reset by removing fix-attempt-N labels",
       "next": ["quality-gate"]
     },
@@ -105,11 +108,13 @@
       "advisory": true,
       "trigger": "pull_request, paths: [index.html]",
       "implementedBy": ".github/workflows/review.yml",
-      "model": "sonnet",
-      "maxTurns": 15,
-      "inputs": ["PR diff", "linked issue acceptance checks", "docs/research/<cap>.md if referenced"],
-      "outputs": ["a single advisory PR comment (## Adversarial Review)"],
-      "invoke": "re-run the workflow from the PR's Checks tab",
+      "agent": "github-copilot-code-review (copilot-pull-request-reviewer)",
+      "auth": "COPILOT_AGENT_PAT",
+      "mechanism": "requests Copilot code review on the PR (best-effort; never blocks)",
+      "note": "generic Copilot code review, not brief-aware; same model family as the fixer, so advisory only",
+      "inputs": ["the PR diff"],
+      "outputs": ["advisory Copilot code-review comments"],
+      "invoke": "re-request Copilot as a reviewer on the PR",
       "next": ["merge"]
     },
     {
@@ -141,6 +146,6 @@
   ],
   "observability": {
     "metricsReport": "docs/metrics/pipeline-report.md",
-    "canarySignals": ["permission_denials_count (green-but-did-nothing)", "turns-used vs --max-turns"]
+    "canarySignals": ["missing/expired COPILOT_AGENT_PAT or Copilot not enabled (assignment rejected = green-but-did-nothing)", "Copilot task state: failed / timed_out / cancelled"]
   }
 }

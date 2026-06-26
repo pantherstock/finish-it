@@ -26,14 +26,14 @@ An autonomous QA → fix loop with GitHub as the orchestrator — a human gate b
 anything ships:
 
 ```
-Run /qa-tester [persona]   (Claude Code + Playwright MCP drive the live app)
+Run /qa-tester [persona]   (a local agent + Playwright MCP drive the live app)
         │  explores in character, dedups, files an issue + `agent-found` label
         ▼
-GitHub issue (labeled)  ──label added fires the Action──►  Auto-fixer (claude-code-action)
-                                                              │  edits index.html, opens a PR
+GitHub issue (labeled)  ──label added fires the Action──►  Auto-fixer assigns GitHub Copilot
+                                                              │  Copilot edits index.html, opens a PR
                                                               ▼
                               Review + merge (human gate) → issue auto-closed → Cloudflare redeploys
 ```
 
-The full stage map (triggers, models, caps, how to re-run any stage) lives in
+The full stage map (triggers, agents, caps, how to re-run any stage) lives in
 [`pipeline.json`](pipeline.json); the human walkthrough is in [AGENTS.md](AGENTS.md).

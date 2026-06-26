@@ -1,8 +1,18 @@
-# Adversarial Reviewer — pipeline.json stage `review`.
-# Runs on every PR touching index.html. Critiques the implementation against the linked
-# issue's acceptance checks + research brief. Advisory only — posts a comment, never blocks.
+# Reviewer — pipeline.json stage `review`.
+# Requests GitHub Copilot code review on every PR touching index.html. Advisory only —
+# Copilot posts review comments; it NEVER blocks. The deterministic Quality Gate remains
+# the real correctness signal.
+#
+# TRADEOFF (documented in AGENTS.md): this is generic Copilot code review, not the old
+# brief-aware adversarial critique. And with Copilot now also the fixer, this is the same
+# model family reviewing its own work — acceptable because it's advisory and the gate is
+# the gate. A brief-aware adversarial reviewer (a Copilot agent task that reads
+# docs/research/<cap>.md) is a possible follow-up chunk.
+#
+# Best-effort: if Copilot code review isn't enabled or the PR is still a draft, the request
+# may no-op — we warn rather than fail the job, so it never gates a PR.
 
-name: Adversarial Reviewer
+name: Copilot Review
 
 on:
   pull_request:
@@ -10,84 +20,31 @@ on:
       - index.html
 
 permissions:
-  contents: read
   pull-requests: write
-  issues: read
-  id-token: write
 
 jobs:
-  review:
-    name: Review against research brief
+  request-review:
+    name: Request Copilot code review
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Request review from Copilot
+        env:
+          # PAT owned by the Copilot-seat holder, so the review request is authorised.
+          GH_TOKEN: ${{ secrets.COPILOT_AGENT_PAT }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
 
-      - uses: anthropics/claude-code-action@v1
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          allowed_bots: '*'
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::COPILOT_AGENT_PAT not set — skipping Copilot review request (advisory stage, not blocking)."
+            exit 0
+          fi
 
-          prompt: |
-            You are an adversarial code reviewer for the Finish It app
-            (a single static index.html — no framework, no build step).
-
-            PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}
-
-            PR body (already fetched — do not call gh pr view):
-            ${{ github.event.pull_request.body }}
-
-            ## Your job
-            Find what is MISSING or WRONG. Look hard before concluding anything is fine.
-
-            ## Steps
-
-            1. Read the PR diff:
-               gh pr diff ${{ github.event.pull_request.number }}
-
-            2. The PR body is shown above. Find "Closes #N" or "Fixes #N" in it,
-               then read that issue:
-               gh issue view <N>
-
-            3. If the issue body references a research brief (e.g. docs/research/<cap>.md),
-               read that file directly with the Read tool. Do not glob all briefs.
-
-            4. Read the changed portions of index.html with Read or Grep as needed.
-
-            5. Critique the implementation against these questions — be specific:
-               a. Does it satisfy EVERY acceptance check item in the issue? Check each one.
-               b. Does it follow the best practices listed in the research brief?
-               c. Does it avoid the anti-patterns listed under "What to avoid"?
-               d. Could any part of it silently fail, throw inside an error handler,
-                  or corrupt the user's `finishit` localStorage data?
-               e. Are there edge cases the implementation misses (e.g. runaway errors,
-                  quota exhaustion, malformed stored data)?
-               f. Is the change surgical — no unrelated code touched, no unrequested features?
-
-            6. Post your findings as a single PR comment:
-               gh pr comment ${{ github.event.pull_request.number }} --body "<your review>"
-
-               Format the comment as:
-               ## Adversarial Review
-               **Against:** docs/research/<cap>.md (or "no research brief found")
-
-               ### Acceptance check
-               - [x] or [ ] each item from the issue, with a note if failing
-
-               ### Best-practice gaps
-               Bullet list — quote the brief when calling something out.
-               If none, say "None found."
-
-               ### Risk / edge cases
-               Bullet list of anything that could silently fail or corrupt data.
-               If none, say "None found."
-
-               ### Verdict
-               One sentence: does this PR meet the bar set by the issue and brief?
-
-            This review is advisory. Do not use the GitHub review API (approve /
-            request-changes) — a comment is sufficient.
-
-          claude_args: |
-            --model sonnet
-            --max-turns 15
-            --allowedTools "Read,Glob,Grep,Bash(gh pr:*),Bash(gh issue:*)"
+          if gh api -X POST "repos/$OWNER/$REPO/pulls/$PR/requested_reviewers" \
+               -f "reviewers[]=copilot-pull-request-reviewer"; then
+            echo "Requested Copilot code review on PR #$PR."
+          else
+            echo "::warning::Could not request Copilot review on PR #$PR (Copilot code review may not be enabled, or the PR is a draft). Advisory stage — not failing."
+          fi

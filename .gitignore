@@ -5,6 +5,8 @@ plan/
 node_modules/
 package.json
 package-lock.json
+test-results/
+playwright-report/
 
 # OS / editor noise
 .DS_Store

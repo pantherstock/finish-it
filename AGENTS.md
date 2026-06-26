@@ -99,12 +99,13 @@ A **capability** is a named functional area of the app — `observability`, `acc
                                                        │
                                            label added fires CI ▼
 
-[CI]     Stage 3 — auto-fixer.yml     →  branch + writes the acceptance test
-                                          verbatim + edits index.html + opens PR
+[CI]     Stage 3 — auto-fixer.yml     →  assigns the issue to the GitHub Copilot cloud
+                                          agent, which writes the acceptance test verbatim
+                                          + fixes index.html + opens a PR
 
 [CI]     Stage 4 — quality-gate.yml   →  html-validate + Playwright smoke → Discord on pass
-                   fix-loop.yml       →  re-patches index.html if gate fails (≤ 3 tries)
-                   review.yml         →  adversarial critique (advisory PR comment)
+                   fix-loop.yml       →  pings @copilot to re-patch if gate fails (≤ 3 tries)
+                   review.yml         →  Copilot code review (advisory PR comments)
                                                        │
                                            human reviews + merges ▼
 
@@ -123,29 +124,44 @@ and files `agent-found` issues directly, bypassing stages 1–2.
 ### The machine-readable map
 
 **`pipeline.json`** is the source of truth for *how the stages wire together* — each stage's
-`type`, `trigger`, the file that implements it, inputs/outputs, model, `maxTurns`, caps, and how
+`type`, `trigger`, the file that implements it, inputs/outputs, the agent + auth it uses, caps, and how
 to invoke it standalone (for re-runs or intermediate interjection). It holds pointers + metadata
 only; the logic stays in the referenced `skills/*.md` and `.github/workflows/*.yml`. Run
 `node scripts/validate-pipeline.js` to confirm nothing has drifted (every referenced path exists).
 
-The CI workflows it maps: `auto-fixer.yml` (agent-found issue → writes the issue's acceptance test
-verbatim + fixes `index.html` → PR), `quality-gate.yml` (html-validate + Playwright smoke + the
-issue's acceptance test, on PRs touching `index.html` or `tests/**`, pings Discord on pass),
-`fix-loop.yml` (re-patches on gate failure, ≤3 tries), `review.yml` (advisory adversarial critique).
+The CI workflows it maps: `auto-fixer.yml` (agent-found issue → **assigns the GitHub Copilot cloud
+agent**, which writes the issue's acceptance test verbatim + fixes `index.html` → PR),
+`quality-gate.yml` (html-validate + Playwright smoke + the issue's acceptance test, on PRs touching
+`index.html` or `tests/**`, pings Discord on pass), `fix-loop.yml` (pings `@copilot` to re-patch on
+gate failure, ≤3 tries), `review.yml` (advisory Copilot code review). `copilot-setup-steps.yml`
+preinstalls the gate toolchain in Copilot's environment so it can self-verify a fix before pushing.
+
+### Pipeline auth (Copilot)
+
+The three agent stages drive the **GitHub Copilot cloud agent**, which needs a *user* token: the
+default Actions `GITHUB_TOKEN` is a server-to-server token and can't assign Copilot or wake it with
+an `@copilot` mention. Create a **fine-grained PAT** owned by the account holding the Copilot seat,
+with **Read** access to *metadata* and **Read & write** to *actions, contents, issues, pull
+requests* (classic equivalent: the `repo` scope), and add it as the repo secret
+**`COPILOT_AGENT_PAT`**. Copilot coding agent must also be enabled for the repo and that account.
+Repo-wide agent guidance lives in `.github/copilot-instructions.md`.
 
 ### Design decisions worth knowing
 
-- **Adversarial review is advisory, not a gate.** It posts a PR comment for the human
-  reviewer to act on. Making it a hard gate risks false-positive blocks and circular
-  auto-fix loops (the same model reviewing its own fix).
+- **Review is advisory, not a gate.** `review.yml` requests **Copilot code review**, which posts
+  advisory PR comments. Making it a hard gate risks false-positive blocks and circular auto-fix
+  loops — and since Copilot is now also the *fixer*, the reviewer is the same model family, so it
+  is deliberately kept advisory. The deterministic gate is the real correctness signal. (A
+  brief-aware adversarial reviewer — a Copilot agent task reading `docs/research/<cap>.md` — is a
+  possible follow-up chunk.)
 - **`capability:X` labels are auto-created** by `/scope-gaps` and `/ship` with
   `gh label create --force` before filing the issue.
 - **Acceptance checks are executable (C2).** `/scope-gaps` emits each acceptance check as a
-  Playwright assertion in the issue body; the auto-fixer writes it verbatim onto its branch
-  (it does *not* go on `main`, so it can't poison other PRs' gates) and must make `index.html`
-  satisfy it. The deterministic gate then enforces the spec and `fix-loop.yml` converges any
-  miss — turning the reviewer's old "comment" into an objective red/green with no
-  same-model-reviews-its-own-fix loop.
+  Playwright assertion in the issue body; the fixer (now the **GitHub Copilot cloud agent**) writes
+  it verbatim onto its branch (it does *not* go on `main`, so it can't poison other PRs' gates) and
+  must make `index.html` satisfy it. The deterministic gate then enforces the spec and `fix-loop.yml`
+  converges any miss. Because the test + fix instructions live in the *issue body*, the contract is
+  agent-agnostic — swapping the engine from Claude to Copilot needed **no** change to `scope-gaps`.
 
 ## Gotchas worth knowing
 
@@ -153,5 +169,8 @@ issue's acceptance test, on PRs touching `index.html` or `tests/**`, pings Disco
   from salient words). They can be awkward — that's known, not a bug per se.
 - **Extraction is regex-based** (`cleanMarkdown`, `BOILER`). Most past bugs live here
   (citation markup, link artifacts). Test extraction changes on a real article URL.
-- The auto-fixer goes **green-but-does-nothing** if its Bash tools aren't allowlisted
-  (look for `permission_denials_count > 0`). Don't strip those tools.
+- The auto-fixer goes **green-but-does-nothing** if `COPILOT_AGENT_PAT` is missing/expired or
+  Copilot coding agent isn't enabled for the repo + PAT owner — the assignment API rejects the
+  default `GITHUB_TOKEN`. The workflow now hard-errors in these cases instead of passing silently.
+  (The prior Claude failure mode was an expired `CLAUDE_CODE_OAUTH_TOKEN` returning `is_error` on
+  turn 1 at $0 cost — same symptom, different cause.)
