@@ -348,6 +348,26 @@
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+  /* keyboard shortcuts help overlay */
+  #shortcutsHelp {
+    display: none; position: fixed; inset: 0; background: rgba(52,48,42,.55);
+    z-index: 60; align-items: center; justify-content: center;
+  }
+  #shortcutsHelp.open { display: flex; }
+  #shortcutsHelp .help-card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 20px;
+    padding: 28px 34px; max-width: 340px; width: 90%; box-shadow: var(--shadow);
+  }
+  #shortcutsHelp h2 {
+    font-family: "Fraunces", serif; font-weight: 400; font-size: 20px; margin-bottom: 16px; color: var(--ink);
+  }
+  #shortcutsHelp dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; }
+  #shortcutsHelp dt { font-family: "Fraunces", serif; color: var(--accent); font-size: 15px; }
+  #shortcutsHelp dd { color: var(--ink-soft); font-size: 15px; margin: 0; }
+  #shortcutsHelp .help-close {
+    margin-top: 20px; text-align: right; font-size: 13px; color: var(--ink-faint); font-style: italic;
+  }
+
   @media (max-width: 560px) {
     .chunk-card { padding: 28px 22px; }
     .chunk-card p { font-size: 19px; }
@@ -413,6 +433,19 @@
       </aside>
       <div class="reader-main">
         <div id="readBody" tabindex="-1" data-focus></div>
+      </div>
+    </div>
+
+    <div id="shortcutsHelp" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+      <div class="help-card">
+        <h2>Keyboard shortcuts</h2>
+        <dl>
+          <dt>→ / Space</dt><dd>Next bite</dd>
+          <dt>←</dt><dd>Previous bite</dd>
+          <dt>?</dt><dd>This help</dd>
+          <dt>Esc</dt><dd>Close help</dd>
+        </dl>
+        <p class="help-close">Press <kbd>Esc</kbd> or <kbd>?</kbd> to close</p>
       </div>
     </div>
   </section>
@@ -1018,6 +1051,18 @@ document.addEventListener("keydown", e => {
   if (_screen !== "reader") return;
   if (/^(INPUT|TEXTAREA)$/.test(e.target.tagName) || e.target.isContentEditable) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const help = document.getElementById("shortcutsHelp");
+  if (e.key === "?" ) {
+    e.preventDefault();
+    help.classList.toggle("open");
+    return;
+  }
+  if (e.key === "Escape") {
+    e.preventDefault();
+    help.classList.remove("open");
+    return;
+  }
+  if (e.shiftKey) return;
   if (e.key === "ArrowRight" || e.key === " ") {
     const cont = document.getElementById("contBtn");
     if (cont && cont.style.display !== "none") {
