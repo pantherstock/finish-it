@@ -160,3 +160,33 @@ the green-but-did-nothing failure mode that hid the Claude outage is now a loud 
 **Not yet measured (live).** Re-running `/ship` on the locked test set to confirm Copilot gets
 assigned, opens a PR, and clears the gate is pending the `COPILOT_AGENT_PAT` secret + merge of the
 migration PR. The Round-1 success-rate row will be taken from that first clean post-migration run.
+
+---
+
+## Round 2 — `/shiplocal` local route · 2026-06-29 · capability: keyboard-shortcuts
+
+**What changed:** The cloud-agent path (`COPILOT_AGENT_PAT`) is untested live, so this run used
+the `/shiplocal` local fallback instead: scope-gaps-local → local auto-fix → local gate loop →
+adversarial review → PR. Issue #61 (`[local] Reader shortcuts are undiscoverable and Shift+Space
+hijacks scroll`), PR #62.
+
+**Fix:** Added `?`-triggered shortcut help overlay (`role="dialog"`, WCAG-safe keys only) and
+fixed the Shift+Space scroll-hijack (missing `e.shiftKey` guard — the Run-1 adversarial finding
+that had never been patched).
+
+| run | cap | issue→PR? | first-try green? | fix attempts | human edits? | review verdict | success? | notes |
+|-----|-----|-----------|------------------|--------------|--------------|----------------|----------|-------|
+| 3 | keyboard-shortcuts | ✅ #62 | ✅ | 0 | no | ✅ advisory (local) | ✅ | `/shiplocal` local route. Gate: 7/7 Playwright green, html-validate clean, first try. Adversarial review clean. Closes the Run-1 Shift+Space bug + adds discoverable `?` overlay. |
+
+**Headline (N=3):** success rate **1/3** (↑ from 0/2) · auto-fixer yield **100%** (3/3 issues → PR)
+· first-try gate green **100%** (3/3, zero fix-loop attempts) · mean fix attempts **0** · human-edit rate **0%**
+
+**What moved vs. Round 0:**
+- **Review verdict: ✅ (first pass).** Rounds 0–1 both failed on negative adversarial review.
+  This run passed because: (1) C2 acceptance test enforced the spec in the gate rather than
+  leaving it to the reviewer; (2) Shift+Space bug was proactively fixed rather than discovered
+  post-merge; (3) the `?` overlay is the brief's top discoverability recommendation — nothing
+  left for the reviewer to downgrade on.
+- **Route caveat:** this used `/shiplocal`, not the cloud-agent CI path. The cloud-agent
+  pipeline (C2 + Copilot `auto-fixer.yml`) has not yet been exercised live — that measurement
+  is still pending.
