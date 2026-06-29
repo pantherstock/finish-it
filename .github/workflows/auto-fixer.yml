@@ -1,96 +1,84 @@
 # Auto-fixer — pipeline.json stage `auto-fix`.
-# An agent-found issue becomes a fix PR opened by Claude in CI. Human reviews + merges;
-# Cloudflare redeploys. Two gotchas that each cost a run are guarded below: OIDC
-# (`id-token: write`) and the agent-mode Bash allowlist (else green-but-does-nothing).
+# An agent-found issue is ASSIGNED to the GitHub Copilot cloud agent. Copilot reads the
+# issue body (which carries the verbatim "## Acceptance test (Playwright)" block + the
+# implementation notes), works in its own ephemeral environment, writes the test + the
+# index.html fix, and opens a PR that closes the issue. Human reviews + merges; Cloudflare
+# redeploys. The C2 contract is agent-agnostic: the test + instructions live in the issue,
+# so swapping the engine (Claude → Copilot) needed no change to scope-gaps.
+#
+# AUTH GOTCHA (this is the green-but-does-nothing trap for this design): assigning Copilot
+# requires a USER-to-server token. The default GITHUB_TOKEN is a server-to-server token and
+# the assignment API rejects it, so the agent never starts. Store a user PAT as the repo
+# secret COPILOT_AGENT_PAT (owned by the account holding the Copilot seat). See AGENTS.md
+# → "Pipeline auth (Copilot)" for the exact scopes.
 
 name: Auto-fixer
 
 on:
   issues:
-    # `labeled` fires whenever ANY label is added to ANY issue. We narrow to our
-    # own label in the job's `if:` below — that guard is the cost guardrail.
+    # `labeled` fires whenever ANY label is added to ANY issue. We narrow to our own
+    # label in the job's `if:` below — that guard is the cost guardrail.
     types: [labeled]
 
-# The action needs write access to push a branch, open a PR, and comment back.
+# Every GitHub call below uses the PAT, so the default token needs no extra scopes.
 permissions:
-  contents: write        # create the fix branch + commits
-  pull-requests: write   # open the PR
-  issues: write          # comment on / link the issue
-  id-token: write        # OIDC token the action uses to authenticate
+  contents: read
 
 jobs:
-  fix:
-    # Only run for issues carrying the tester's label. Without this, every label
-    # on every issue would spin up a (billed) Claude run.
+  assign-copilot:
+    # Only run for issues carrying the tester's label. Without this, every label on every
+    # issue would assign Copilot a task.
     if: github.event.label.name == 'agent-found'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Assign the issue to Copilot cloud agent
+        env:
+          # User PAT — fine-grained: Read access to metadata; Read & write to actions,
+          # contents, issues, and pull requests. (Classic alternative: the `repo` scope.)
+          GH_TOKEN: ${{ secrets.COPILOT_AGENT_PAT }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          ISSUE_NODE_ID: ${{ github.event.issue.node_id }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
 
-      - uses: anthropics/claude-code-action@v1
-        with:
-          # ── AUTH: Claude Pro/Max subscription (no API credits) ──────────────
-          # Generate the token locally with:  claude setup-token
-          # then add it as a repo secret named CLAUDE_CODE_OAUTH_TOKEN
-          # (Settings → Secrets and variables → Actions → New repository secret).
-          # This draws on your Pro usage limits — the same quota as interactive
-          # Claude Code — instead of metered API billing.
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          allowed_bots: '*'
-          #
-          # ── ALTERNATIVE: metered API billing (isolated cost + spend cap) ────
-          # Comment out the line above and uncomment the line below, then add an
-          # ANTHROPIC_API_KEY secret instead. Use this if you'd rather not spend
-          # your Pro quota and want a hard spend cap in the Anthropic Console.
-          # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::COPILOT_AGENT_PAT is not set. Add a user PAT secret so the agent can be assigned (the default GITHUB_TOKEN cannot assign Copilot)."
+            exit 1
+          fi
 
-          # The task. GitHub injects the issue's title/body/number at run time.
-          prompt: |
-            Fix this issue in the Finish It app (a single static file: index.html),
-            then open a PR. Stop there — fix-loop.yml handles retries if CI fails.
+          # 1. Confirm Copilot cloud agent is enabled for this repo + grab its bot node id.
+          #    If enabled, copilot-swe-agent appears in the assignable suggestedActors.
+          BOT_ID=$(gh api graphql -f owner="$OWNER" -f name="$REPO" -f query='
+            query($owner:String!,$name:String!){
+              repository(owner:$owner,name:$name){
+                suggestedActors(capabilities:[CAN_BE_ASSIGNED], first:100){
+                  nodes{ login __typename ... on Bot { id } }
+                }
+              }
+            }' --jq '.data.repository.suggestedActors.nodes[] | select(.login=="copilot-swe-agent") | .id')
 
-            Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
+          if [ -z "$BOT_ID" ]; then
+            echo "::error::Copilot cloud agent is not assignable in $OWNER/$REPO (copilot-swe-agent not in suggestedActors). Enable Copilot coding agent for the repo + the PAT owner."
+            exit 1
+          fi
 
-            ${{ github.event.issue.body }}
+          # 2. Repo node id — agentAssignment.targetRepositoryId (where Copilot will work).
+          REPO_ID=$(gh api graphql -f owner="$OWNER" -f name="$REPO" -f query='
+            query($owner:String!,$name:String!){ repository(owner:$owner,name:$name){ id } }' \
+            --jq '.data.repository.id')
 
-            ## Instructions — follow this order exactly to stay within the turn budget
+          # 3. Assign Copilot. It branches from main, implements the issue, and opens a PR.
+          gh api graphql \
+            -H 'GraphQL-Features: issues_copilot_assignment_api_support,coding_agent_model_selection' \
+            -f assignableId="$ISSUE_NODE_ID" -f botId="$BOT_ID" -f repoId="$REPO_ID" -f query='
+            mutation($assignableId:ID!,$botId:ID!,$repoId:ID!){
+              replaceActorsForAssignable(input:{
+                assignableId:$assignableId,
+                actorIds:[$botId],
+                agentAssignment:{ targetRepositoryId:$repoId, baseRef:"main" }
+              }){ assignable { ... on Issue { number } } }
+            }'
 
-            The issue body above contains everything you need: exact line numbers,
-            before/after code snippets, and gotchas. The research brief is already
-            quoted inline — do NOT read it separately.
-
-            1. **Read only the specific lines you need.** Use Grep or Read with
-               offset+limit targeting the line numbers in Implementation notes.
-               Never read index.html in full.
-
-            2. **Write the acceptance test verbatim.** The issue body has an
-               "## Acceptance test (Playwright)" section with a target filename and a
-               fenced code block. Write that file to the given path under tests/ EXACTLY
-               as written — do not edit, weaken, or "improve" the test. It is the
-               objective gate for this fix; your job is to make index.html satisfy it.
-
-            3. **Make ALL edits before touching git.** Complete every Edit call
-               first. Do not git-diff, git-status, or re-read the file between edits.
-
-            4. **Batch branch + commit + push into one shell call** (stage the fix AND
-               the test so the gate runs it):
-               git checkout -b fix/issue-${{ github.event.issue.number }} && \
-               git add index.html tests/ && \
-               git commit -m "fix: ${{ github.event.issue.title }}" && \
-               git push -u origin fix/issue-${{ github.event.issue.number }}
-
-            5. **Open the PR** with gh pr create. List each acceptance-check item
-               in the body and end with "Closes #${{ github.event.issue.number }}".
-
-            6. **Stop immediately.** Do not verify CI, check PR state, or re-read anything.
-
-            If the issue is unclear or contradictory, or has no "## Acceptance test"
-            block, post one comment explaining why, then stop without making any edits.
-
-          # 25 turns covers: targeted reads (≤3) + writing the acceptance test verbatim
-          # + edits (up to ~10 for complex issues) + one batched git call + gh pr create.
-          # fix-loop.yml handles CI retries.
-          claude_args: |
-            --model sonnet
-            --max-turns 25
-            --allowedTools "Edit,Read,Write,Glob,Grep,Bash(git:*),Bash(gh:*)"
+          echo "Assigned Copilot cloud agent to issue #$ISSUE_NUMBER — it will open a PR that closes it."
