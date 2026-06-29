@@ -114,12 +114,17 @@ A **capability** is a named functional area of the app — `observability`, `acc
 
 **`/ship <cap>`** is a shortcut that runs stages 1 and 2 in one command.
 
+**`/shiplocal <cap>`** runs the same front-half, but scopes/queues with
+`agent-found-local` (not `agent-found`), then executes the back-half locally instead
+of CI (local auto-fix → local quality gate loop → local adversarial review → open PR).
+
 Each skill is one harness-agnostic body in **`skills/<name>.md`** (the single source of truth),
 wired into each harness by a thin stub: Claude Code `.claude/commands/<name>.md`, Copilot CLI
 `.agents/skills/<name>/SKILL.md`. Edit behaviour in `skills/`, not the stubs.
 
-**Alternative entry point:** `/qa-tester [persona]` drives the live app via Playwright MCP
-and files `agent-found` issues directly, bypassing stages 1–2.
+**Alternative entry points:** `/qa-tester [persona]` drives the live app via Playwright
+MCP and files `agent-found` issues directly, bypassing stages 1–2. `/shiplocal <cap>`
+is a local fallback when cloud agent assignment/auth is unavailable.
 
 ### The machine-readable map
 
@@ -154,7 +159,8 @@ Repo-wide agent guidance lives in `.github/copilot-instructions.md`.
   is deliberately kept advisory. The deterministic gate is the real correctness signal. (A
   brief-aware adversarial reviewer — a Copilot agent task reading `docs/research/<cap>.md` — is a
   possible follow-up chunk.)
-- **`capability:X` labels are auto-created** by `/scope-gaps` and `/ship` with
+- **`capability:X` labels are auto-created** by `/scope-gaps`, `/scope-gaps-local`,
+  `/ship`, and `/shiplocal` with
   `gh label create --force` before filing the issue.
 - **Acceptance checks are executable (C2).** `/scope-gaps` emits each acceptance check as a
   Playwright assertion in the issue body; the fixer (now the **GitHub Copilot cloud agent**) writes

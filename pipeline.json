@@ -7,6 +7,7 @@
     "harnessEntries": "Thin per-harness stubs that only carry frontmatter and point at the skill body. Claude Code: .claude/commands/<name>.md · Copilot CLI: .agents/skills/<name>/SKILL.md · other agents resolve via AGENTS.md.",
     "labels": {
       "agent-found": "Routes an issue to auto-fixer.yml. ONLY for index.html-shaped app issues.",
+      "agent-found-local": "Routes an issue to the local shiplocal back-half (no GitHub Actions auto-fix trigger).",
       "capability:<cap>": "Auto-created by scope/ship; tags the capability area.",
       "fix-attempt-N": "Counts fix-loop retries on a PR (cap 3)."
     },
@@ -20,6 +21,7 @@
   },
   "entrypoints": {
     "ship": "Run research + scope in one prompt (skills/ship.md).",
+    "shiplocal": "Run research + local-scope, then execute auto-fix + gate + fix-loop + review locally and open a PR.",
     "research+scope": "Run the two skills individually.",
     "qa-tester": "Bypass research+scope; drive the live app and file agent-found issues directly.",
     "issueLabel": "Apply the agent-found label to any issue to enter at the auto-fix stage.",
@@ -131,6 +133,18 @@
     }
   ],
   "alternateEntries": [
+    {
+      "id": "shiplocal",
+      "type": "skill",
+      "runsOn": "local",
+      "trigger": "manual: /shiplocal <cap>",
+      "implementedBy": "skills/shiplocal.md",
+      "harnessEntries": [".claude/commands/shiplocal.md", ".agents/skills/shiplocal/SKILL.md"],
+      "inputs": ["capability name", "existing or newly filed agent-found-local issue"],
+      "outputs": ["local fix branch", "local quality-gate status", "local adversarial review note", "pull request closing the issue"],
+      "invoke": "/shiplocal <cap>",
+      "next": ["merge"]
+    },
     {
       "id": "qa-tester",
       "type": "skill",
