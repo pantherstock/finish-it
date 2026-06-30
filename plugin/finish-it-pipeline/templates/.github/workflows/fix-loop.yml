@@ -1,0 +1,74 @@
+# Fix Loop — pipeline.json stage `fix-loop`.
+# Fires when Quality Gate completes with failure on an agent-found PR. Re-engages the
+# GitHub Copilot cloud agent on that PR by posting an @copilot comment with the failing
+# log, so Copilot pushes a fix to the same branch (which re-triggers the gate). Caps at 3
+# attempts (fix-attempt-N labels) then hands to a human.
+#
+# GOTCHAS:
+#  - workflow_run always runs in the default-branch context; we resolve the PR by head_branch.
+#  - The @copilot mention must come from a USER with write access. A comment posted with the
+#    default GITHUB_TOKEN won't wake Copilot, so the comment is posted with COPILOT_AGENT_PAT.
+#    The label bookkeeping still uses the default token.
+
+name: Fix Loop
+
+on:
+  workflow_run:
+    workflows: ["Quality Gate"]
+    types: [completed]
+
+permissions:
+  contents: read         # checkout not needed; Copilot edits in its own env
+  pull-requests: write   # add fix-attempt-N label; post exhaustion comment
+  actions: read          # read failing run logs via gh run view
+
+jobs:
+  reengage:
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find agent-found PR, enforce the 3-attempt cap, ping Copilot
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COPILOT_PAT: ${{ secrets.COPILOT_AGENT_PAT }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+
+          PR=$(gh pr list --head "$BRANCH" --label "agent-found" \
+               --json number --jq '.[0].number // ""' --limit 1)
+
+          if [ -z "$PR" ]; then
+            echo "No agent-found PR on branch $BRANCH — skipping."
+            exit 0
+          fi
+
+          ATTEMPTS=$(gh pr view "$PR" --json labels \
+            --jq '[.labels[].name | select(startswith("fix-attempt"))] | length')
+
+          if [ "$ATTEMPTS" -ge 3 ]; then
+            gh pr comment "$PR" \
+              --body "Fix loop exhausted 3 attempts — quality gate still failing. Needs human review."
+            echo "Cap reached for PR #$PR — handed off to a human."
+            exit 0
+          fi
+
+          NEXT=$((ATTEMPTS + 1))
+          gh label create "fix-attempt-$NEXT" --color "d93f0b" --force
+          gh pr edit "$PR" --add-label "fix-attempt-$NEXT"
+
+          # Trim the failing log so the comment stays small but actionable.
+          LOG=$(gh run view "$RUN_ID" --log-failed 2>/dev/null | tail -c 6000 || true)
+
+          # Re-engage Copilot on the PR. The mention is posted as the PAT owner (write
+          # access) so Copilot picks it up and pushes a fix to this branch.
+          BODY=$(printf '@copilot the Quality Gate failed on this PR (fix-loop attempt %s of 3).\n\nPlease fix `index.html` so the html-validate + Playwright checks pass. Do NOT weaken or edit the acceptance test under `tests/` — make the implementation satisfy it. Keep the change surgical.\n\nFailing log (tail):\n\n```\n%s\n```\n' "$NEXT" "$LOG")
+
+          if [ -z "${COPILOT_PAT:-}" ]; then
+            echo "::error::COPILOT_AGENT_PAT is not set — cannot wake Copilot (a GITHUB_TOKEN comment won't trigger it)."
+            exit 1
+          fi
+
+          GH_TOKEN="$COPILOT_PAT" gh pr comment "$PR" --body "$BODY"
+          echo "Pinged Copilot on PR #$PR (attempt $NEXT)."

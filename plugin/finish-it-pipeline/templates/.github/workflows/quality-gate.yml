@@ -1,0 +1,59 @@
+# Quality Gate — pipeline.json stage `quality-gate`.
+# Runs on every PR touching index.html or tests/**. Two deterministic jobs (no LLM): html-validate
+# and a Playwright run of the core-loop smoke + each issue's acceptance test. A third job pings
+# Discord only when both pass.
+
+name: Quality Gate
+
+on:
+  pull_request:
+    paths:
+      - index.html
+      - tests/**
+
+permissions:
+  contents: read
+
+jobs:
+
+  html-validate:
+    name: HTML validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate HTML structure
+        run: npx --yes html-validate index.html
+
+  smoke-test:
+    name: Playwright smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright + Chromium
+        run: |
+          npm init -y
+          npm install -D @playwright/test
+          npx playwright install --with-deps chromium
+
+      - name: Serve app and run smoke test
+        run: |
+          python3 -m http.server 8080 &
+          until curl -sf http://localhost:8080 > /dev/null; do sleep 1; done
+          npx playwright test
+
+  notify:
+    name: Ping Discord — PR ready
+    needs: [html-validate, smoke-test]
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send webhook
+        run: |
+          curl -s -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"Gate green — PR #${{ github.event.pull_request.number }} ready for review: **${{ github.event.pull_request.title }}**\n${{ github.event.pull_request.html_url }}\"}"

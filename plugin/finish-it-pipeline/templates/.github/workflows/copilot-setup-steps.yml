@@ -1,0 +1,39 @@
+# Copilot Setup Steps — preinstalls the Quality Gate toolchain in the Copilot cloud agent's
+# ephemeral environment, so it can run the SAME checks the CI gate runs (html-validate +
+# Playwright) and self-verify a fix BEFORE pushing. This is the harness that lets the fixer
+# test its own work — the missing piece that previously let bad fixes reach the gate.
+#
+# The job MUST be named `copilot-setup-steps` or Copilot ignores it. It only runs from the
+# default branch. The push/pull_request triggers below let you validate it like any workflow.
+
+name: "Copilot Setup Steps"
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Same toolchain as quality-gate.yml. npm init + the package.json it creates are
+      # git-ignored (this repo ships no build); Copilot must not commit them.
+      - name: Preinstall the Quality Gate toolchain (Playwright + Chromium, html-validate)
+        run: |
+          npm init -y
+          npm install -D @playwright/test
+          npx playwright install --with-deps chromium
+          npx --yes html-validate --version

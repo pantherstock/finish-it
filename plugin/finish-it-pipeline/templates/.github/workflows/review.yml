@@ -1,0 +1,50 @@
+# Reviewer — pipeline.json stage `review`.
+# Requests GitHub Copilot code review on every PR touching index.html. Advisory only —
+# Copilot posts review comments; it NEVER blocks. The deterministic Quality Gate remains
+# the real correctness signal.
+#
+# TRADEOFF (documented in AGENTS.md): this is generic Copilot code review, not the old
+# brief-aware adversarial critique. And with Copilot now also the fixer, this is the same
+# model family reviewing its own work — acceptable because it's advisory and the gate is
+# the gate. A brief-aware adversarial reviewer (a Copilot agent task that reads
+# docs/research/<cap>.md) is a possible follow-up chunk.
+#
+# Best-effort: if Copilot code review isn't enabled or the PR is still a draft, the request
+# may no-op — we warn rather than fail the job, so it never gates a PR.
+
+name: Copilot Review
+
+on:
+  pull_request:
+    paths:
+      - index.html
+
+permissions:
+  pull-requests: write
+
+jobs:
+  request-review:
+    name: Request Copilot code review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request review from Copilot
+        env:
+          # PAT owned by the Copilot-seat holder, so the review request is authorised.
+          GH_TOKEN: ${{ secrets.COPILOT_AGENT_PAT }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::COPILOT_AGENT_PAT not set — skipping Copilot review request (advisory stage, not blocking)."
+            exit 0
+          fi
+
+          if gh api -X POST "repos/$OWNER/$REPO/pulls/$PR/requested_reviewers" \
+               -f "reviewers[]=copilot-pull-request-reviewer"; then
+            echo "Requested Copilot code review on PR #$PR."
+          else
+            echo "::warning::Could not request Copilot review on PR #$PR (Copilot code review may not be enabled, or the PR is a draft). Advisory stage — not failing."
+          fi

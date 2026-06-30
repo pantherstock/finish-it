@@ -1,0 +1,54 @@
+{
+  "$comment": "Self-describing manifest for the Finish It capability-pipeline PLUGIN — a packaged, portable form of the pipeline mapped by the repo's pipeline.json. Copilot CLI loads the bundled skills from agents/skills/<name>/SKILL.md (the format proven in this repo); this file is the human/agent-readable package descriptor (analogous to pipeline.json) and the contract the install-pipeline skill follows. It does NOT duplicate skill logic — that lives in skills/*.md. See README.md.",
+  "name": "finish-it-pipeline",
+  "version": "0.1.0",
+  "description": "Autonomous QA->fix capability pipeline as an installable plugin: bundles the local agent skills and an install-pipeline skill that scaffolds the GitHub-Actions CI half (which cannot be plugin runtime code) into a target repo.",
+  "author": { "name": "pantherstock", "url": "https://github.com/pantherstock/finish-it" },
+  "homepage": "https://github.com/pantherstock/finish-it",
+  "harnesses": ["copilot-cli", "claude-code"],
+  "installer": "skills/install-pipeline.md",
+
+  "skills": [
+    { "name": "research",         "stage": "research (1)",        "runsOn": "local", "body": "skills/research.md",         "copilotEntry": "agents/skills/research/SKILL.md" },
+    { "name": "scope-gaps",       "stage": "scope (2)",           "runsOn": "local", "body": "skills/scope-gaps.md",       "copilotEntry": "agents/skills/scope-gaps/SKILL.md" },
+    { "name": "scope-gaps-local", "stage": "scope (local)",       "runsOn": "local", "body": "skills/scope-gaps-local.md", "copilotEntry": "agents/skills/scope-gaps-local/SKILL.md" },
+    { "name": "ship",             "stage": "entrypoint (1+2)",    "runsOn": "local", "body": "skills/ship.md",             "copilotEntry": "agents/skills/ship/SKILL.md" },
+    { "name": "shiplocal",        "stage": "alt entry (full)",    "runsOn": "local", "body": "skills/shiplocal.md",        "copilotEntry": "agents/skills/shiplocal/SKILL.md" },
+    { "name": "qa-tester",        "stage": "alt entry (live QA)", "runsOn": "local", "body": "skills/qa-tester.md",        "copilotEntry": "agents/skills/qa-tester/SKILL.md" },
+    { "name": "install-pipeline", "stage": "installer",           "runsOn": "local", "body": "skills/install-pipeline.md", "copilotEntry": "agents/skills/install-pipeline/SKILL.md" }
+  ],
+
+  "ciTemplates": {
+    "$comment": "Installed into the target repo by skills/install-pipeline.md. Inert inside the plugin: GitHub Actions only runs workflows under the repo-root .github/workflows/. These are stages 3-6 (auto-fix, quality-gate, fix-loop, review) + the Copilot env setup — the part a harness plugin can ship + install but cannot BE.",
+    "workflows": [
+      "templates/.github/workflows/auto-fixer.yml",
+      "templates/.github/workflows/quality-gate.yml",
+      "templates/.github/workflows/fix-loop.yml",
+      "templates/.github/workflows/review.yml",
+      "templates/.github/workflows/copilot-setup-steps.yml"
+    ],
+    "support": [
+      "templates/pipeline.json",
+      "templates/.github/copilot-instructions.md",
+      "templates/.github/PULL_REQUEST_TEMPLATE.md",
+      "templates/.github/ISSUE_TEMPLATE/bug.yml",
+      "scripts/validate-pipeline.js"
+    ]
+  },
+
+  "labels": ["agent-found", "agent-found-local", "enhancement", "capability:<cap>", "fix-attempt-N"],
+
+  "requiredSecrets": {
+    "COPILOT_AGENT_PAT": "Fine-grained user PAT (metadata: read; actions, contents, issues, pull requests: read & write) owned by the Copilot-seat holder. The default GITHUB_TOKEN cannot assign Copilot or @copilot-mention it. Human-set; a plugin cannot carry it.",
+    "DISCORD_WEBHOOK_URL": "Optional — gate/research pings. Remove the notify job from quality-gate.yml if unused."
+  },
+
+  "params": {
+    "$comment": "Repo-specific knobs the installer rewrites if the target app is not a single index.html with tests under tests/.",
+    "appEntry": "index.html",
+    "testGlob": "tests/**",
+    "baseRef": "main"
+  },
+
+  "notes": "Stages 3-6 stay on GitHub (event-triggered Actions, executed by the Copilot cloud agent + Node/Playwright). A harness plugin can ship and install them, but cannot BE them. See README.md -> 'What can and can't be a plugin'."
+}
