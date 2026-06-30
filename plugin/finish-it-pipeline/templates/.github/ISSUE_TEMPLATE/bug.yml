@@ -1,0 +1,41 @@
+name: Bug report
+description: A defect in Finish It — the auto-fixer can turn this into a PR.
+labels: [bug]
+body:
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps, starting from opening the app.
+      placeholder: |
+        1. Open the app
+        2. Paste …
+        3. Click Begin →
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: What happened.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: What should have happened.
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options: [blocker, major, minor, polish]
+    validations:
+      required: true
+  - type: input
+    id: context
+    attributes:
+      label: Browser / context
+      description: Optional — browser, screen size, link vs. pasted text, etc.

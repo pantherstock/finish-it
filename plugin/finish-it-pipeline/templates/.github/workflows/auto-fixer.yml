@@ -1,0 +1,84 @@
+# Auto-fixer — pipeline.json stage `auto-fix`.
+# An agent-found issue is ASSIGNED to the GitHub Copilot cloud agent. Copilot reads the
+# issue body (which carries the verbatim "## Acceptance test (Playwright)" block + the
+# implementation notes), works in its own ephemeral environment, writes the test + the
+# index.html fix, and opens a PR that closes the issue. Human reviews + merges; Cloudflare
+# redeploys. The C2 contract is agent-agnostic: the test + instructions live in the issue,
+# so swapping the engine (Claude → Copilot) needed no change to scope-gaps.
+#
+# AUTH GOTCHA (this is the green-but-does-nothing trap for this design): assigning Copilot
+# requires a USER-to-server token. The default GITHUB_TOKEN is a server-to-server token and
+# the assignment API rejects it, so the agent never starts. Store a user PAT as the repo
+# secret COPILOT_AGENT_PAT (owned by the account holding the Copilot seat). See AGENTS.md
+# → "Pipeline auth (Copilot)" for the exact scopes.
+
+name: Auto-fixer
+
+on:
+  issues:
+    # `labeled` fires whenever ANY label is added to ANY issue. We narrow to our own
+    # label in the job's `if:` below — that guard is the cost guardrail.
+    types: [labeled]
+
+# Every GitHub call below uses the PAT, so the default token needs no extra scopes.
+permissions:
+  contents: read
+
+jobs:
+  assign-copilot:
+    # Only run for issues carrying the tester's label. Without this, every label on every
+    # issue would assign Copilot a task.
+    if: github.event.label.name == 'agent-found'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assign the issue to Copilot cloud agent
+        env:
+          # User PAT — fine-grained: Read access to metadata; Read & write to actions,
+          # contents, issues, and pull requests. (Classic alternative: the `repo` scope.)
+          GH_TOKEN: ${{ secrets.COPILOT_AGENT_PAT }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          ISSUE_NODE_ID: ${{ github.event.issue.node_id }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::COPILOT_AGENT_PAT is not set. Add a user PAT secret so the agent can be assigned (the default GITHUB_TOKEN cannot assign Copilot)."
+            exit 1
+          fi
+
+          # 1. Confirm Copilot cloud agent is enabled for this repo + grab its bot node id.
+          #    If enabled, copilot-swe-agent appears in the assignable suggestedActors.
+          BOT_ID=$(gh api graphql -f owner="$OWNER" -f name="$REPO" -f query='
+            query($owner:String!,$name:String!){
+              repository(owner:$owner,name:$name){
+                suggestedActors(capabilities:[CAN_BE_ASSIGNED], first:100){
+                  nodes{ login __typename ... on Bot { id } }
+                }
+              }
+            }' --jq '.data.repository.suggestedActors.nodes[] | select(.login=="copilot-swe-agent") | .id')
+
+          if [ -z "$BOT_ID" ]; then
+            echo "::error::Copilot cloud agent is not assignable in $OWNER/$REPO (copilot-swe-agent not in suggestedActors). Enable Copilot coding agent for the repo + the PAT owner."
+            exit 1
+          fi
+
+          # 2. Repo node id — agentAssignment.targetRepositoryId (where Copilot will work).
+          REPO_ID=$(gh api graphql -f owner="$OWNER" -f name="$REPO" -f query='
+            query($owner:String!,$name:String!){ repository(owner:$owner,name:$name){ id } }' \
+            --jq '.data.repository.id')
+
+          # 3. Assign Copilot. It branches from main, implements the issue, and opens a PR.
+          gh api graphql \
+            -H 'GraphQL-Features: issues_copilot_assignment_api_support,coding_agent_model_selection' \
+            -f assignableId="$ISSUE_NODE_ID" -f botId="$BOT_ID" -f repoId="$REPO_ID" -f query='
+            mutation($assignableId:ID!,$botId:ID!,$repoId:ID!){
+              replaceActorsForAssignable(input:{
+                assignableId:$assignableId,
+                actorIds:[$botId],
+                agentAssignment:{ targetRepositoryId:$repoId, baseRef:"main" }
+              }){ assignable { ... on Issue { number } } }
+            }'
+
+          echo "Assigned Copilot cloud agent to issue #$ISSUE_NUMBER — it will open a PR that closes it."
